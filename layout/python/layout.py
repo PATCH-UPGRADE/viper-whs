@@ -8,10 +8,29 @@
 
 
 from carthage import *
+import carthage.libvirt
 from carthage.modeling import *
 from carthage.ansible import *
 from carthage.network import V4Config
+from carthage_base import *
 
 class layout(CarthageLayout):
     layout_name = 'viper-whs'
+    domain = 'whs.local'
+    from .images import Images
+
+    @provides('bridge_net')
+    class net(NetworkModel):
+        bridge_name = 'viper-whs'
+        v4_config=V4Config(dhcp=True)
     
+    class net_config(NetworkConfigModel):
+        add('eth0', mac=persistent_random_mac, net=injector_access('bridge_net'))
+
+    class linux_machine(MachineModel):
+        name = 'linux01'
+        cpus = 2
+        memory_mb = 1024 * 8
+        console_needed = True
+        add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
+        add_provider(carthage.libvirt.vm_image_key, injector_access('whs_base_debian'))

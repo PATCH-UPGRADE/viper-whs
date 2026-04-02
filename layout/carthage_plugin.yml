@@ -7,3 +7,11 @@
 # LICENSE for details.
 
 name: viper-whs
+config:
+  authorized_keys: authorized_keys
+  base_dir: /srv/viper-whs
+  debian:
+    distribution: trixie
+  container_prefix: 'whs-'
+  plugins:
+    - https://github.com/hadron/carthage-base
