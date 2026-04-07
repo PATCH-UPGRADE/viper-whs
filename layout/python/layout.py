@@ -14,11 +14,13 @@ from carthage.podman import *
 from carthage.oci import *
 from carthage.network import V4Config
 from carthage_base import *
+from .images import WhsBaseImage, whs_vm_image
+
 
 class layout(CarthageLayout):
     layout_name = 'viper-whs'
     domain = 'whs.local'
-    from .images import Images
+    from .images import WhsBaseImage, whs_vm_image
 
     @provides('bridge_net')
     class net(NetworkModel):
@@ -34,4 +36,4 @@ class layout(CarthageLayout):
         memory_mb = 1024 * 8
         console_needed = True
         add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
-        add_provider(carthage.libvirt.vm_image_key, injector_access('whs_base_debian'))
+        add_provider(carthage.libvirt.vm_image_key, whs_vm_image)

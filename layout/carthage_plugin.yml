@@ -14,4 +14,5 @@ config:
     distribution: trixie
   container_prefix: 'whs-'
   plugins:
+    - carthage.libvirt
     - https://github.com/hadron/carthage-base
