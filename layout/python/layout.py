@@ -10,7 +10,8 @@
 from carthage import *
 import carthage.libvirt
 from carthage.modeling import *
-from carthage.ansible import *
+from carthage.podman import *
+from carthage.oci import *
 from carthage.network import V4Config
 from carthage_base import *
 
@@ -21,14 +22,14 @@ class layout(CarthageLayout):
 
     @provides('bridge_net')
     class net(NetworkModel):
-        bridge_name = 'viper-whs'
+        bridge_name = 'whs-lab'
         v4_config=V4Config(dhcp=True)
     
     class net_config(NetworkConfigModel):
         add('eth0', mac=persistent_random_mac, net=injector_access('bridge_net'))
 
-    class linux_machine(MachineModel):
-        name = 'linux01'
+    class linux_vm(MachineModel):
+        name = 'vm01'
         cpus = 2
         memory_mb = 1024 * 8
         console_needed = True
