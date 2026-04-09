@@ -37,3 +37,13 @@ class layout(CarthageLayout):
         console_needed = True
         add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
         add_provider(carthage.libvirt.vm_image_key, whs_vm_image)
+
+    class arm_vm(MachineModel):
+        name = 'vm02'
+        cpus = 2
+        memory_mb = 1024 * 8
+        console_needed = False
+        architecture = 'aarch64'
+        add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
+        add_provider(carthage.libvirt.vm_image_key, 'arm_image.qcow2')
+        cloud_init = True
