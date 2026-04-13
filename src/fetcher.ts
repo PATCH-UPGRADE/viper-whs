@@ -1,0 +1,21 @@
+const CARTHAGE_API_URL = import.meta.env.VITE_CARTHAGE_API_URL;
+
+if (!CARTHAGE_API_URL) {
+    throw new Error("'VITE_CARTHAGE_API_URL' not found in .env!");
+}
+
+export const carthageFetcher = async <T>(endpointUrl: string, options?: RequestInit): Promise<T> => {
+    const response = await fetch(`http://${CARTHAGE_API_URL}/api/v1${endpointUrl}`, {
+        headers: {
+            "Content-Type": "application/json",
+            ...options?.headers,
+        },
+        ...options,
+    });
+
+    if (!response.ok) {
+        throw new Error(`An HTTP error occured: ${response.status}`);
+    }
+
+    return response.json();
+}
