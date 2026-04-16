@@ -1,11 +1,3 @@
-# Copyright (C) 2026, Hadron Industries.
-# Carthage is free software; you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License version 3
-# as published by the Free Software Foundation. It is distributed
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the file
-# LICENSE for details.
-
 
 from carthage import *
 import carthage.libvirt
@@ -15,6 +7,7 @@ from carthage.oci import *
 from carthage.network import V4Config
 from carthage_base import *
 from .images import WhsBaseImage, whs_vm_image
+from .web_backend import web_server_key
 
 
 class layout(CarthageLayout):
@@ -22,6 +15,9 @@ class layout(CarthageLayout):
     domain = 'whs.local'
     from .images import WhsBaseImage, whs_vm_image
 
+    async def async_ready(self):
+        await self.ainjector.get_instance_async(web_server_key)
+        await super().async_ready()
     @provides('bridge_net')
     class net(NetworkModel):
         bridge_name = 'whs-lab'
