@@ -1,5 +1,6 @@
-# Python
+# Layout
 __pycache__/
+**/models/*.y*ml
 
 # Logs
 logs

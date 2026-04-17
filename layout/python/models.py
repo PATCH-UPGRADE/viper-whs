@@ -1,5 +1,6 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, TypeVar
 from pydantic import BaseModel, Field, ConfigDict, IPvAnyAddress
+from pathlib import Path
 import yaml
 
 default_model_config = ConfigDict(
@@ -7,6 +8,8 @@ default_model_config = ConfigDict(
         extra='forbid',
         validate_assignment=True,
     )
+
+ModelType = TypeVar('ModelType', bound=BaseModel)
 
 class VmImage(BaseModel):
     model_config = default_model_config
@@ -45,8 +48,53 @@ class Device(BaseModel):
     gateway: Optional[IPvAnyAddress] = Field(description='Default gateway', default=None)
     dns_servers: list[IPvAnyAddress] = Field(default_factory=list)
 
+class ModelStore(BaseModel):
+    model_config = default_model_config
 
-# Remove later
+    vm_images: list[VmImage] = Field(default_factory=list)
+    container_images: list[ContainerImage] = Field(default_factory=list)
+    devices: list[Device] = Field(default_factory=list)
+    model_dir: Path = Field(default=Path(__file__).with_name('models'))
+
+    def _load_model_file(self, path: Path, model_class: type[ModelType]) -> list[ModelType]:
+        if not path.exists():
+            return []
+
+        with path.open('r', encoding='utf-8') as f:
+            raw_data = yaml.safe_load(f)
+
+        if raw_data is None:
+            return []
+        if not isinstance(raw_data, list):
+            raise ValueError(f'Expected a list of records in {path}')
+
+        return [model_class.model_validate(item) for item in raw_data]
+
+    def _save_model_file(self, path: Path, records: list[ModelType]) -> None:
+        with path.open('w', encoding='utf-8') as f:
+            yaml.safe_dump(
+                [record.model_dump(mode='json') for record in records],
+                f,
+                sort_keys=False,
+                default_flow_style=False,
+            )
+
+    def load(self) -> 'ModelStore':
+        self.vm_images = self._load_model_file(self.model_dir / 'vm_images.yml', VmImage)
+        self.container_images = self._load_model_file(self.model_dir / 'container_images.yml', ContainerImage)
+        self.devices = self._load_model_file(self.model_dir / 'devices.yml', Device)
+        return self
+
+    def save(self) -> 'ModelStore':
+        self.model_dir.mkdir(parents=True, exist_ok=True)
+
+        self._save_model_file(self.model_dir / 'vm_images.yml', self.vm_images)
+        self._save_model_file(self.model_dir / 'container_images.yml', self.container_images)
+        self._save_model_file(self.model_dir / 'devices.yml', self.devices)
+        return self
+
+
+# For testing purposes
 if __name__ == '__main__':
     test_image = VmImage(
         name = 'sdr_img',
@@ -60,6 +108,11 @@ if __name__ == '__main__':
         cpus = 4,
         image = test_image,
     )
-    with open('data.yaml', 'w') as f:
-        yaml.dump(test_device.model_dump(), f)
+    test_store = ModelStore(
+        vm_images = [test_image],
+        devices = [test_device],
+    )
+    test_store.save()
 
+    loaded_store = ModelStore().load()
+    print(loaded_store.model_dump())
