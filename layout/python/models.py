@@ -40,7 +40,7 @@ class Device(BaseModel):
     display: bool = Field(description='Display needed', default=False)
 
     # Set a default image and/or allow for pulling from container registry
-    image: Optional[VmImage | ContainerImage] = Field(description='Image to use for the machine', default=None)
+    image_name: Optional[str] = Field(description='Image to use for the machine', default=None)
 
     dhcp: bool = Field(description='Leave True to use DHCP. If a static is desired, set this to False and set ipv4_manual, gateway, and dns_servers.', default=True)
     mac_address: Optional[str] = Field(description='Hardware MAC address', default=None, pattern=r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
@@ -80,18 +80,37 @@ class ModelStore(BaseModel):
             )
 
     def load(self) -> 'ModelStore':
+        '''Loads models from yaml'''
         self.vm_images = self._load_model_file(self.model_dir / 'vm_images.yml', VmImage)
         self.container_images = self._load_model_file(self.model_dir / 'container_images.yml', ContainerImage)
         self.devices = self._load_model_file(self.model_dir / 'devices.yml', Device)
         return self
 
     def save(self) -> 'ModelStore':
+        '''Saves all models off to yaml'''
         self.model_dir.mkdir(parents=True, exist_ok=True)
 
         self._save_model_file(self.model_dir / 'vm_images.yml', self.vm_images)
         self._save_model_file(self.model_dir / 'container_images.yml', self.container_images)
         self._save_model_file(self.model_dir / 'devices.yml', self.devices)
+        self.validate_references()
         return self
+    
+    def get_device_image(self, device: Device) -> Optional[VmImage | ContainerImage]:
+        '''Helper to get the actual image for a specific device.'''
+        if not device.image_name:
+            return None
+        for img in self.vm_images + self.container_images:
+            if img.name == device.image_name:
+                return img
+        return None
+    
+    def validate_references(self):
+        '''Ensures any referenced images actually exist'''
+        for device in self.devices:
+            if device.image_name and not self.get_device_image(device):
+                raise ValueError(f"Device {device.name} references a missing image: {device.image_name}")
+
 
 
 # For testing purposes
@@ -106,13 +125,12 @@ if __name__ == '__main__':
         name = 'tester01',
         description = 'Test device information',
         cpus = 4,
-        image = test_image,
+        image_name = 'sdr_img',
     )
     test_store = ModelStore(
         vm_images = [test_image],
         devices = [test_device],
     )
     test_store.save()
-
     loaded_store = ModelStore().load()
     print(loaded_store.model_dump())
