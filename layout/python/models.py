@@ -2,6 +2,7 @@ from typing import Literal, Optional, TypeVar
 from pydantic import BaseModel, Field, ConfigDict, IPvAnyAddress
 from pathlib import Path
 import yaml
+from uuid import uuid4
 
 default_model_config = ConfigDict(
         str_strip_whitespace=True,
@@ -13,6 +14,8 @@ ModelType = TypeVar('ModelType', bound=BaseModel)
 
 class VmImage(BaseModel):
     model_config = default_model_config
+    id: str = Field(default_factory=lambda: uuid4().hex)
+
     name: str = Field(description='Name of the image', min_length=1, max_length=64)
     description: str = Field(description='Description or tags', default='')
     version: float = Field(default=1.00)
@@ -20,12 +23,15 @@ class VmImage(BaseModel):
 
 class ContainerImage(BaseModel):
     model_config = default_model_config
+    id: str = Field(default_factory=lambda: uuid4().hex)
+
     name: str = Field(description='Name of the image', min_length=1, max_length=64)
     description: str = Field(description='Description or tags', default='')
     version: float = Field(default=1.00)
 
 class Device(BaseModel):
     model_config = default_model_config
+    id: str = Field(default_factory=lambda: uuid4().hex)
 
     name: str = Field(description='Name of the device', min_length=3, max_length=20)
     description: str = Field(description='Description or tags', default='')
