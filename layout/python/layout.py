@@ -8,12 +8,17 @@ from carthage.oci import *
 from carthage.network import V4Config
 from carthage_base import *
 from .images import WhsBaseImage, whs_vm_image
+from .web_backend import web_server_key
 
 
 class layout(CarthageLayout):
     layout_name = 'viper-whs'
     domain = 'whs.local'
     from .images import WhsBaseImage, whs_vm_image
+
+    async def async_ready(self):
+        await self.ainjector.get_instance_async(web_server_key)
+        await super().async_ready()
 
     @provides('bridge_net')
     class net(NetworkModel):

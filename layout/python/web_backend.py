@@ -4,16 +4,20 @@ from typing import Annotated
 import uvicorn
 from fastapi import FastAPI, APIRouter, Depends, Request
 from fastapi.staticfiles import StaticFiles
-from carthage import AsyncInjector, inject, InjectionKey, CarthagePlugin
+from carthage import AsyncInjector, inject, InjectionKey, CarthagePlugin, base_injector
 from carthage.modeling import CarthageLayout
 from carthage.deployment import DeploymentIntrospection, DeploymentResult
 from carthage.dependency_injection import instantiation_roots
+from .models import *
 
 def get_ainjector(request:Request)->AsyncInjector:
     return request.app.state.layout.ainjector
 
 def get_layout(request:Request)-> CarthageLayout:
     return request.app.state.layout
+
+def get_model_store(request:Request)->ModelStore:
+    return request.app.state.model_store
 
 def running_deployment()-> DeploymentResult | None:
     for r in instantiation_roots:
@@ -26,6 +30,8 @@ ainjector_dependency = Annotated[AsyncInjector, Depends(get_ainjector)]
 
 layout_dependency = Annotated[CarthageLayout, Depends(get_layout)]
 
+model_store_dependency = Annotated[ModelStore, Depends(get_model_store)]
+                                   
 async def regenerate_layout(request:Request):
     '''
     Backgrount task to update the layout after mutations to the ModelStore.
@@ -50,8 +56,14 @@ async def regenerate_layout(request:Request):
 api_v1 = APIRouter(prefix="/api/v1")
 
 @api_v1.get("/devices")
-async def get_devices(ainjector:ainjector_dependency):
-    raise NotImplementedError
+async def get_devices(model_store:model_store_dependency)-> list[Device]:
+    return model_store.devices
+
+@api_v1.post('/device')
+async def create_device(device:Device, request:Request, model_store:model_store_dependency):
+    model_store.devices.append(device)
+    model_store.save()
+    asyncio.ensure_future(regenerate_layout())
 
 @inject(
     layout=InjectionKey(CarthageLayout, _ready=False),
@@ -69,6 +81,7 @@ async def start_web_server(layout, plugin):
     #regeneration.
     app.state.regeneration_task = None
     app.state.base_injector = base_injector
+    app.state.model_store = base_injector.get_instance(ModelStore)
     app.include_router(api_v1)
     if (plugin.resource_dir/'../dist').exists():
         app.mount('/', StaticFiles(directory=plugin.resource_dir/'../dist', html=True), name='frontend')
