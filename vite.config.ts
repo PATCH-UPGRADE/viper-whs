@@ -8,9 +8,9 @@ import { defineConfig } from "vite";
 export default defineConfig({
   server: {
     cors: {
-      origin: 'http://localhost:54321',
-      methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    }
+      origin: "http://localhost:54321",
+      methods: ["GET", "POST", "PUT", "DELETE"],
+    },
   },
   plugins: [
     react(),

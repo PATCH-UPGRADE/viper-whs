@@ -1,4 +1,5 @@
 import { carthageFetcher } from "@/fetcher";
-import { TopologiesResponse } from "./types";
+import type { TopologiesResponse } from "./types";
 
-export const getTopologies = () => carthageFetcher<TopologiesResponse>(`/topologies`);
+export const getTopologies = () =>
+  carthageFetcher<TopologiesResponse>(`/topologies`);
