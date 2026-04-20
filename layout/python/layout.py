@@ -18,6 +18,7 @@ class layout(CarthageLayout):
     async def async_ready(self):
         await self.ainjector.get_instance_async(web_server_key)
         await super().async_ready()
+
     @provides('bridge_net')
     class net(NetworkModel):
         bridge_name = 'whs-lab'
