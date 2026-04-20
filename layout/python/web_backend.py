@@ -45,8 +45,8 @@ async def regenerate_layout(request:Request):
     state.regeneration_task = asyncio.current_task()
     async with state.deployment_lock:
         state.regeneration_task = None
-        from .layout import layout
-        base_injector.replace_provider(InjectionKey(CarthageLayout), layout)
+        from .layout import build_layout
+        base_injector.replace_provider(InjectionKey(CarthageLayout), build_layout)
         ainjector = AsyncInjector(base_injector)
         state.layout = await ainjector.get_instance_async(CarthageLayout)
 
