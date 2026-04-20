@@ -1,5 +1,6 @@
 from pathlib import Path
 from carthage import inject, Injector, ConfigLayout, InjectionKey
+from carthage.modeling import CarthageLayout
 from . import layout
 from .models import ModelStore
 from .web_backend import start_web_server, web_server_key
@@ -12,6 +13,6 @@ def build_model_store(injector: Injector):
 
 @inject(injector=Injector)
 def carthage_plugin(injector):
-    injector.add_provider(layout.layout)
+    injector.add_provider(InjectionKey(CarthageLayout), layout.build_layout)
     injector.add_provider(InjectionKey(ModelStore), build_model_store)
     injector.add_provider(web_server_key, start_web_server)

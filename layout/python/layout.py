@@ -1,5 +1,3 @@
-
-
 from carthage import *
 import carthage.libvirt
 from carthage.modeling import *
@@ -9,29 +7,52 @@ from carthage.network import V4Config
 from carthage_base import *
 from .images import WhsBaseImage, whs_vm_image
 from .web_backend import web_server_key
+from .models import ModelStore
 
 
-class layout(CarthageLayout):
-    layout_name = 'viper-whs'
-    domain = 'whs.local'
-    from .images import WhsBaseImage, whs_vm_image
+@inject(model_store=ModelStore, ainjector=AsyncInjector)
+async def build_layout(model_store, ainjector) -> CarthageLayout:
+    injector = ainjector.injector
+    model_store.load()
+    model_store.validate_references()    
 
-    async def async_ready(self):
-        await self.ainjector.get_instance_async(web_server_key)
-        await super().async_ready()
+    class layout(CarthageLayout):
+        layout_name = 'viper-whs'
+        domain = 'whs.local'
+        from .images import WhsBaseImage, whs_vm_image
 
-    @provides('bridge_net')
-    class net(NetworkModel):
-        bridge_name = 'whs-lab'
-        v4_config=V4Config(dhcp=True)
-    
-    class net_config(NetworkConfigModel):
-        add('eth0', mac=persistent_random_mac, net=injector_access('bridge_net'))
+        async def async_ready(self):
+            await self.ainjector.get_instance_async(web_server_key)
+            await super().async_ready()
 
-    class linux_vm(MachineModel):
-        name = 'vm01'
-        cpus = 2
-        memory_mb = 1024 * 8
-        console_needed = True
-        add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
-        add_provider(carthage.libvirt.vm_image_key, whs_vm_image)
+        @provides('bridge_net')
+        class net(NetworkModel):
+            bridge_name = 'whs-lab'
+            v4_config=V4Config(dhcp=True)
+        
+        class net_config(NetworkConfigModel):
+            add('eth0', mac=persistent_random_mac, net=injector_access('bridge_net'))
+
+        def build_vm(device):
+            @dynamic_name(device.name) # TODO: Should we do something to prevent duplicate machine names?
+            class whs_vm(MachineModel):
+                name = device.name
+                cpus = device.cpus
+                memory_mb = device.memory
+                console_needed = True
+                add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
+                add_provider(carthage.libvirt.vm_image_key, whs_vm_image) # TODO: use device image
+            return whs_vm
+
+        for id, device in model_store.devices.items():
+            new_vm = build_vm(device)
+
+        class linux_vm(MachineModel):
+            name = 'vm01'
+            cpus = 2
+            memory_mb = 1024 * 8
+            console_needed = True
+            add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
+            add_provider(carthage.libvirt.vm_image_key, whs_vm_image)
+
+    return await ainjector(layout)
