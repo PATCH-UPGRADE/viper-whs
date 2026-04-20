@@ -1,5 +1,5 @@
 from typing import Literal, Optional, TypeVar
-from pydantic import BaseModel, Field, ConfigDict, IPvAnyAddress
+from pydantic import BaseModel, ConfigDict, Field, IPvAnyAddress
 from pathlib import Path
 import yaml
 from uuid import uuid4
@@ -10,9 +10,12 @@ default_model_config = ConfigDict(
         validate_assignment=True,
     )
 
-ModelType = TypeVar('ModelType', bound=BaseModel)
+class IdentifiedModel(BaseModel):
+    id: str
 
-class VmImage(BaseModel):
+ModelType = TypeVar('ModelType', bound=IdentifiedModel)
+
+class VmImage(IdentifiedModel):
     model_config = default_model_config
     id: str = Field(default_factory=lambda: uuid4().hex)
 
@@ -21,7 +24,7 @@ class VmImage(BaseModel):
     version: float = Field(default=1.00)
     type: Literal['qcow2', 'raw'] = Field(description='Type of image being used, qcow2 or raw', default='raw')
 
-class ContainerImage(BaseModel):
+class ContainerImage(IdentifiedModel):
     model_config = default_model_config
     id: str = Field(default_factory=lambda: uuid4().hex)
 
@@ -29,7 +32,7 @@ class ContainerImage(BaseModel):
     description: str = Field(description='Description or tags', default='')
     version: float = Field(default=1.00)
 
-class Device(BaseModel):
+class Device(IdentifiedModel):
     model_config = default_model_config
     id: str = Field(default_factory=lambda: uuid4().hex)
 
@@ -45,8 +48,8 @@ class Device(BaseModel):
     disk_controller: str = Field(description='Controller used for disk', default='virtio')
     display: bool = Field(description='Display needed', default=False)
 
-    # Set a default image and/or allow for pulling from container registry
-    image_name: Optional[str] = Field(description='Image to use for the machine', default=None)
+    # If no image_id is provided, maybe set a default image and/or allow for pulling from a container registry in the future
+    image_id: Optional[str] = Field(description='Image id to use for the machine', default=None)
 
     dhcp: bool = Field(description='Leave True to use DHCP. If a static is desired, set this to False and set ipv4_manual, gateway, and dns_servers.', default=True)
     mac_address: Optional[str] = Field(description='Hardware MAC address', default=None, pattern=r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
@@ -57,29 +60,45 @@ class Device(BaseModel):
 class ModelStore(BaseModel):
     model_config = default_model_config
 
-    vm_images: list[VmImage] = Field(default_factory=list)
-    container_images: list[ContainerImage] = Field(default_factory=list)
-    devices: list[Device] = Field(default_factory=list)
+    vm_images: dict[str, VmImage] = Field(default_factory=dict)
+    container_images: dict[str, ContainerImage] = Field(default_factory=dict)
+    devices: dict[str, Device] = Field(default_factory=dict)
     model_dir: Path = Field(default=Path(__file__).with_name('models'))
 
-    def _load_model_file(self, path: Path, model_class: type[ModelType]) -> list[ModelType]:
+    def _load_model_file(self, path: Path, model_class: type[ModelType]) -> dict[str, ModelType]:
         if not path.exists():
-            return []
+            return {}
 
         with path.open('r', encoding='utf-8') as f:
             raw_data = yaml.safe_load(f)
 
         if raw_data is None:
-            return []
-        if not isinstance(raw_data, list):
-            raise ValueError(f'Expected a list of records in {path}')
+            return {}
+        if not isinstance(raw_data, dict):
+            raise ValueError(f'Expected a mapping of id -> record in {path}')
 
-        return [model_class.model_validate(item) for item in raw_data]
+        records: dict[str, ModelType] = {}
+        for record_id, item in raw_data.items():
+            if not isinstance(item, dict):
+                raise ValueError(f'Expected record {record_id} in {path} to be a mapping')
 
-    def _save_model_file(self, path: Path, records: list[ModelType]) -> None:
+            payload = {'id': record_id, **item}
+            record = model_class.model_validate(payload)
+            records[record_id] = record
+
+        return records
+
+    def _save_model_file(self, path: Path, records: dict[str, ModelType]) -> None:
         with path.open('w', encoding='utf-8') as f:
             yaml.safe_dump(
-                [record.model_dump(mode='json') for record in records],
+                {
+                    record_id: {
+                        key: value
+                        for key, value in record.model_dump(mode='json', by_alias=True).items()
+                        if key != 'id'
+                    }
+                    for record_id, record in records.items()
+                },
                 f,
                 sort_keys=False,
                 default_flow_style=False,
@@ -95,27 +114,31 @@ class ModelStore(BaseModel):
     def save(self) -> 'ModelStore':
         '''Saves all models off to yaml'''
         self.model_dir.mkdir(parents=True, exist_ok=True)
+        self.validate_references()
 
         self._save_model_file(self.model_dir / 'vm_images.yml', self.vm_images)
         self._save_model_file(self.model_dir / 'container_images.yml', self.container_images)
         self._save_model_file(self.model_dir / 'devices.yml', self.devices)
-        self.validate_references()
         return self
-    
+
     def get_device_image(self, device: Device) -> Optional[VmImage | ContainerImage]:
         '''Helper to get the actual image for a specific device.'''
-        if not device.image_name:
+        if not device.image_id:
             return None
-        for img in self.vm_images + self.container_images:
-            if img.name == device.image_name:
-                return img
-        return None
+
+        match device.type:
+            case 'vm':
+                return self.vm_images.get(device.image_id)
+            case 'container':
+                return self.container_images.get(device.image_id)
+            case _:
+                return None
     
     def validate_references(self):
         '''Ensures any referenced images actually exist'''
-        for device in self.devices:
-            if device.image_name and not self.get_device_image(device):
-                raise ValueError(f"Device {device.name} references a missing image: {device.image_name}")
+        for device in self.devices.values():
+            if device.image_id and not self.get_device_image(device):
+                raise ValueError(f"Device {device.name} references a missing image: {device.image_id}")
 
 
 
@@ -131,11 +154,11 @@ if __name__ == '__main__':
         name = 'tester01',
         description = 'Test device information',
         cpus = 4,
-        image_name = 'sdr_img',
+        image_id = test_image.id,
     )
     test_store = ModelStore(
-        vm_images = [test_image],
-        devices = [test_device],
+        vm_images = {test_image.id: test_image},
+        devices = {test_device.id: test_device},
     )
     test_store.save()
     loaded_store = ModelStore().load()
