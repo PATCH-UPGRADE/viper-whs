@@ -4,6 +4,14 @@ from pathlib import Path
 import yaml
 from uuid import uuid4
 
+__all__ = [
+    'IdentifiedModel',
+    'VmImage',
+    'ContainerImage',
+    'Device',
+    'ModelStore',
+]
+
 default_model_config = ConfigDict(
         str_strip_whitespace=True,
         extra='forbid',
