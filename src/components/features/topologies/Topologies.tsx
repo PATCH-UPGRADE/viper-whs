@@ -7,7 +7,7 @@ export const TopologiesContainer = () => {
     data: topologies,
     isPending,
     isError,
-    _error,
+    error,
   } = useQuery({
     queryKey: ["topologies"],
     queryFn: getTopologies,
@@ -18,6 +18,7 @@ export const TopologiesContainer = () => {
   }
 
   if (isError) {
+    console.error(error);
     return <TopologiesError />;
   }
 
