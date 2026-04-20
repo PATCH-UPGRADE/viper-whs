@@ -1,3 +1,4 @@
+import asyncio
 from carthage import *
 import carthage.libvirt
 from carthage.modeling import *
@@ -14,16 +15,13 @@ from .models import ModelStore
 async def build_layout(model_store, ainjector) -> CarthageLayout:
     injector = ainjector.injector
     model_store.load()
-    model_store.validate_references()    
+    model_store.validate_references()
+    asyncio.ensure_future(ainjector.get_instance_async(web_server_key))
 
     class layout(CarthageLayout):
         layout_name = 'viper-whs'
         domain = 'whs.local'
         from .images import WhsBaseImage, whs_vm_image
-
-        async def async_ready(self):
-            await self.ainjector.get_instance_async(web_server_key)
-            await super().async_ready()
 
         @provides('bridge_net')
         class net(NetworkModel):
