@@ -6,6 +6,12 @@ import { defineConfig } from "vite";
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    cors: {
+      origin: "http://localhost:54321",
+      methods: ["GET", "POST", "PUT", "DELETE"],
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
