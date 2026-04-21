@@ -3,7 +3,7 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { TopologiesContainer } from "./components/features/topologies/Topologies";
+import { DevicesContainer } from "./components/features/devices/Devices";
 
 const rootRoute = createRootRoute();
 
@@ -11,7 +11,7 @@ const routes = [
   createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
-    component: () => <TopologiesContainer />,
+    component: () => <DevicesContainer />,
   }),
 ];
 
