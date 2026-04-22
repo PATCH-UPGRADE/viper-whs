@@ -2,7 +2,7 @@ import asyncio
 import os
 from typing import Annotated
 import uvicorn
-from fastapi import FastAPI, APIRouter, Depends, Request
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from carthage import AsyncInjector, inject, InjectionKey, CarthagePlugin, base_injector
 from carthage.modeling import CarthageLayout
@@ -59,9 +59,27 @@ api_v1 = APIRouter(prefix="/api/v1")
 async def get_devices(model_store:model_store_dependency)-> list[Device]:
     return list(model_store.devices.values())
 
-@api_v1.post('/device')
+@api_v1.post('/devices')
 async def create_device(device:Device, request:Request, model_store:model_store_dependency):
     model_store.devices[device.id] = device
+    model_store.save()
+    asyncio.ensure_future(regenerate_layout(request))
+
+@api_v1.put('/devices/{device_id}')
+async def update_device(device_id:str, device:Device, request:Request, model_store:model_store_dependency):
+    if not device_id in model_store.devices:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    model_store.devices[device_id] = device
+    model_store.save()
+    asyncio.ensure_future(regenerate_layout(request))
+
+@api_v1.delete('/devices/{device_id}')
+async def delete_device(device_id:str, request:Request, model_store:model_store_dependency):
+    if not device_id in model_store.devices:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    model_store.devices.pop(device_id)
     model_store.save()
     asyncio.ensure_future(regenerate_layout(request))
 

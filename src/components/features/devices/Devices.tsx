@@ -1,5 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -24,6 +30,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { columns } from "./columns";
 import { getDevices, useCreateDevice } from "./hooks";
 import {
   type Device,
@@ -563,7 +570,10 @@ export const DevicesContainer = () => {
 
   return (
     <div>
-      <Button onClick={() => setOpen(true)}>Add Device</Button>
+      <Button className="text-lg bg-blue-800" onClick={() => setOpen(true)}>
+        <PlusIcon />
+        Add Device
+      </Button>
       <DeviceCreateUpdateModal
         form={form}
         open={open}
@@ -588,15 +598,51 @@ interface DevicesListI {
 }
 
 const DevicesList = ({ devices }: DevicesListI) => {
+  const table = useReactTable({
+    data: devices,
+    columns: columns,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
   return (
-    <div>
-      {devices.map((device, index) => (
-        <div key={index}>
-          {Object.values(device)
-            .map((value) => value)
-            .toString()}
-        </div>
-      ))}
+    <div className="p-2">
+      <table
+        style={{ border: "1px solid black", width: "100%", textAlign: "left" }}
+      >
+        <thead>
+          {table.getHeaderGroups().map((headerGroup, index) => (
+            <tr key={index}>
+              {headerGroup.headers.map((header, index) => (
+                <th
+                  key={index}
+                  style={{ borderBottom: "1px solid black", padding: "8px" }}
+                >
+                  {header.isPlaceholder
+                    ? null
+                    : flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
+                </th>
+              ))}
+            </tr>
+          ))}
+        </thead>
+        <tbody>
+          {table.getRowModel().rows.map((row, index) => (
+            <tr key={index}>
+              {row.getVisibleCells().map((cell, index) => (
+                <td
+                  key={index}
+                  style={{ padding: "8px", borderBottom: "1px solid #eee" }}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
