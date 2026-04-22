@@ -23,6 +23,7 @@ class IdentifiedModel(BaseModel):
 
 ModelType = TypeVar('ModelType', bound=IdentifiedModel)
 
+
 class VmImage(IdentifiedModel):
     model_config = default_model_config
     id: str = Field(default_factory=lambda: uuid4().hex)
@@ -53,7 +54,7 @@ class Device(IdentifiedModel):
     cpus: int = Field(description='Number of CPUs assigned', default=2)
     memory: int = Field(description='System memory (in MB) assigned', default=4096)
     disk: int = Field(description='Disk size (in GB)', default=20)
-    disk_controller: str = Field(description='Controller used for disk', default='virtio')
+    disk_controller: Literal['virtio', 'sata'] = Field(description='Controller used for disk', default='virtio')
     display: bool = Field(description='Display needed', default=False)
 
     # If no image_id is provided, maybe set a default image and/or allow for pulling from a container registry in the future
@@ -65,6 +66,8 @@ class Device(IdentifiedModel):
     gateway: Optional[IPvAnyAddress] = Field(description='Default gateway', default=None)
     dns_servers: list[IPvAnyAddress] = Field(default_factory=list)
 
+ImageModel = VmImage | ContainerImage
+
 class ModelStore(BaseModel):
     model_config = default_model_config
 
@@ -72,6 +75,25 @@ class ModelStore(BaseModel):
     container_images: dict[str, ContainerImage] = Field(default_factory=dict)
     devices: dict[str, Device] = Field(default_factory=dict)
     model_dir: Path = Field(default=Path(__file__).with_name('models'))
+
+    def add_device(self, **device_data) -> Device:
+        '''Add a device from API-provided fields.'''
+        record = Device(**device_data)
+
+        self.devices[record.id] = record
+
+        try:
+            self.validate_references()
+            self.save()
+        except Exception as e:
+            self.devices.pop(record.id, None)
+            raise ValueError(f"Unable to add device {record.id}") from e
+
+        return record
+
+    def add_image(self, **image_data) -> ImageModel:
+        '''Add an image from API-provided fields.'''
+        pass
 
     def _load_model_file(self, path: Path, model_class: type[ModelType]) -> dict[str, ModelType]:
         if not path.exists():
