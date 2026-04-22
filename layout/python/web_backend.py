@@ -57,13 +57,13 @@ api_v1 = APIRouter(prefix="/api/v1")
 
 @api_v1.get("/devices")
 async def get_devices(model_store:model_store_dependency)-> list[Device]:
-    return model_store.devices
+    return list(model_store.devices.values())
 
 @api_v1.post('/device')
 async def create_device(device:Device, request:Request, model_store:model_store_dependency):
-    model_store.devices.append(device)
+    model_store.devices[device.id] = device
     model_store.save()
-    asyncio.ensure_future(regenerate_layout())
+    asyncio.ensure_future(regenerate_layout(request))
 
 @inject(
     layout=InjectionKey(CarthageLayout, _ready=False),

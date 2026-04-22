@@ -8,16 +8,13 @@ export const carthageFetcher = async <T>(
   endpointUrl: string,
   options?: RequestInit,
 ): Promise<T> => {
-  const response = await fetch(
-    `http://${CARTHAGE_API_URL}/api/v1${endpointUrl}`,
-    {
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
-      ...options,
+  const response = await fetch(`http://${CARTHAGE_API_URL}${endpointUrl}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
     },
-  );
+    ...options,
+  });
 
   if (!response.ok) {
     throw new Error(`An HTTP error occured: ${response.status}`);

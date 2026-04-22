@@ -53,7 +53,7 @@ class Device(IdentifiedModel):
     cpus: int = Field(description='Number of CPUs assigned', default=2)
     memory: int = Field(description='System memory (in MB) assigned', default=4096)
     disk: int = Field(description='Disk size (in GB)', default=20)
-    disk_controller: str = Field(description='Controller used for disk', default='virtio')
+    disk_controller: Literal['virtio', 'sata'] = Field(description='Controller used for disk', default='virtio')
     display: bool = Field(description='Display needed', default=False)
 
     # If no image_id is provided, maybe set a default image and/or allow for pulling from a container registry in the future
