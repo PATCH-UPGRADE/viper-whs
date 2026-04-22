@@ -8,6 +8,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -29,6 +30,7 @@ import {
   DeviceArchitectureType,
   type DeviceFormValues,
   DeviceType,
+  DiskControllerType,
   deviceInputSchema,
 } from "./types";
 
@@ -52,12 +54,16 @@ export const DeviceCreateUpdateModal = ({
 
   const isPending = form.formState.isSubmitting;
   const verbLabel = isUpdate ? "Update" : "Create";
+  const description = isUpdate
+    ? "Modify Device fields then press 'Update Device' below when you are finished"
+    : "Configure a new Device then press 'Create Device' below when you are finished";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="p-0 rounded-2xl w-6xl lg:max-w-2xl overflow-hidden">
         <DialogHeader className="px-6 py-4 border-b gap-1">
           <DialogTitle className="text-xl">{verbLabel} Device</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form
@@ -71,14 +77,14 @@ export const DeviceCreateUpdateModal = ({
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Device Name *</FormLabel>
+                    <FormLabel>Name *</FormLabel>
                     <FormDescription>
-                      The given name for this Image
+                      The given name for this Device
                     </FormDescription>
                     <FormControl>
                       <Input
                         type="text"
-                        placeholder="e.g., Hospital Asset Inventory"
+                        placeholder="e.g., Heart Rate Monitor"
                         {...field}
                       />
                     </FormControl>
@@ -94,14 +100,10 @@ export const DeviceCreateUpdateModal = ({
                   <FormItem>
                     <FormLabel>Description *</FormLabel>
                     <FormDescription>
-                      Provide some descriptive details here
+                      Provide any additional details here
                     </FormDescription>
                     <FormControl>
-                      <Input
-                        type="text"
-                        placeholder="e.g., Hospital Asset Inventory"
-                        {...field}
-                      />
+                      <Input type="text" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -149,7 +151,7 @@ export const DeviceCreateUpdateModal = ({
                   <FormItem>
                     <FormLabel>Cloud Init *</FormLabel>
                     <FormDescription>
-                      Toggle TRUE to use Cloud Init
+                      Leave CHECKED to use Cloud Init
                     </FormDescription>
                     <FormControl>
                       <Checkbox
@@ -205,7 +207,7 @@ export const DeviceCreateUpdateModal = ({
                   <FormItem>
                     <FormLabel>CPU Cores *</FormLabel>
                     <FormDescription>
-                      How many CPU Cores the Image
+                      The number of CPU cores the Device should have
                     </FormDescription>
                     <FormControl>
                       <Input
@@ -233,7 +235,7 @@ export const DeviceCreateUpdateModal = ({
                   <FormItem>
                     <FormLabel>Memory *</FormLabel>
                     <FormDescription>
-                      The image memory size (in MBs)
+                      The amount of memory (in MBs) the Device should have
                     </FormDescription>
                     <FormControl>
                       <Input
@@ -260,7 +262,9 @@ export const DeviceCreateUpdateModal = ({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Disk *</FormLabel>
-                    <FormDescription>Image Disk size (in GBs)</FormDescription>
+                    <FormDescription>
+                      The amount of disk space (in GBs) the Device should have
+                    </FormDescription>
                     <FormControl>
                       <Input
                         type="number"
@@ -286,9 +290,31 @@ export const DeviceCreateUpdateModal = ({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Disk Controller *</FormLabel>
-                    <FormDescription>Controller used for disk</FormDescription>
+                    <FormDescription>
+                      The disk controller used for the disk
+                    </FormDescription>
                     <FormControl>
-                      <Input type="text" placeholder="e.g. virtio" {...field} />
+                      <RadioGroup
+                        onValueChange={(val: string) => {
+                          field.onChange(val);
+                        }}
+                        value={field.value}
+                      >
+                        {Object.values(DiskControllerType).map((type, i) => (
+                          <FormItem
+                            key={i}
+                            className="flex gap-x-2 hover:border-primary/50 transition-colors"
+                          >
+                            <FormControl>
+                              <RadioGroupItem
+                                value={type}
+                                className="rounded-lg border-2 border-primary hover:border-primary/50"
+                              />
+                            </FormControl>
+                            <FormLabel htmlFor={type}>{type}</FormLabel>
+                          </FormItem>
+                        ))}
+                      </RadioGroup>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -343,8 +369,9 @@ export const DeviceCreateUpdateModal = ({
                   <FormItem>
                     <FormLabel>DHCP *</FormLabel>
                     <FormDescription>
-                      Leave True to use DHCP. If a static is desired, set this
-                      to False and set ipv4_manual, gateway, and dns_servers.
+                      Leave CHECKED to use DHCP. If a static is desired, set
+                      this to UNCHECKED and manually set ipv4, gateway, and
+                      dns_servers fields below.
                     </FormDescription>
                     <FormControl>
                       <Checkbox
@@ -371,6 +398,11 @@ export const DeviceCreateUpdateModal = ({
                         type="text"
                         placeholder="e.g. 00:1A:2B:3C:4D:5E"
                         {...field}
+                        onChange={(e) => {
+                          field.onChange(
+                            e.target.value !== "" ? e.target.value : undefined,
+                          );
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -383,7 +415,7 @@ export const DeviceCreateUpdateModal = ({
                 name="ipv4_manual"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>ipv4 Override</FormLabel>
+                    <FormLabel>ipv4</FormLabel>
                     <FormDescription>
                       Optional: Override automatic IP assignment
                     </FormDescription>
@@ -392,6 +424,11 @@ export const DeviceCreateUpdateModal = ({
                         type="text"
                         placeholder="e.g. 192.168.0.254"
                         {...field}
+                        onChange={(e) => {
+                          field.onChange(
+                            e.target.value !== "" ? e.target.value : undefined,
+                          );
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -413,6 +450,11 @@ export const DeviceCreateUpdateModal = ({
                         type="text"
                         placeholder="e.g. 192.168.0.1"
                         {...field}
+                        onChange={(e) => {
+                          field.onChange(
+                            e.target.value !== "" ? e.target.value : undefined,
+                          );
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -491,9 +533,9 @@ export const DevicesContainer = () => {
       display: false,
       image_id: "",
       dhcp: true,
-      mac_address: "",
-      ipv4_manual: "",
-      gateway: "",
+      mac_address: undefined,
+      ipv4_manual: undefined,
+      gateway: undefined,
       dns_servers: [],
     },
   });

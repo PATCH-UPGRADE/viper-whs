@@ -10,6 +10,11 @@ export const DeviceType = {
   container: "container",
 } as const;
 
+export const DiskControllerType = {
+  virtio: "virtio",
+  sata: "sata",
+} as const;
+
 export const deviceInputSchema = z.object({
   name: z.string().min(3),
   description: z.string(),
@@ -19,7 +24,7 @@ export const deviceInputSchema = z.object({
   cpus: z.number(),
   memory: z.number(),
   disk: z.number(),
-  disk_controller: z.string(),
+  disk_controller: z.enum(DiskControllerType),
   display: z.boolean(),
   image_id: z.string(),
   dhcp: z.boolean(),
@@ -39,7 +44,7 @@ export const deviceOutputSchema = z.object({
   cpus: z.number(),
   memory: z.number(),
   disk: z.number(),
-  disk_controller: z.string(),
+  disk_controller: z.enum(DiskControllerType),
   display: z.boolean(),
   image_id: z.string(),
   dhcp: z.boolean(),
