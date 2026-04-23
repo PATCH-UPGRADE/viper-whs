@@ -42,7 +42,7 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
                 network='10.20.100.0/24',
                 dhcp=False,
                 pool=('10.20.100.10', '10.20.100.200'),
-                domains='mitigation-lab.local',
+                domains='whs.local',
                 dns_servers=('10.20.100.2',),
                 gateway='10.20.100.1',
             )
@@ -52,11 +52,13 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
                 net=injector_access('bridge_net'), 
                 v4_config=V4Config(dhcp=True))
             
-        class dhcp_dns(DhcpRole, SystemdNetworkModelMixin):
+        class dhcp_dns(DhcpRole, SystemdNetworkModelMixin, MachineModel):
             override_dependencies = True
             add_provider(machine_implementation_key, dependency_quote(PodmanContainer))
             add_provider(oci_container_image, injector_access(WhsBaseImage))
             add_provider(InjectionKey(NetworkConfig), dependency_quote(None))
+            podman_options = ['--cap-add=NET_ADMIN', '--cap-add=NET_RAW', '--network=podman', '--sysctl', 'net.ipv4.ip_forward=1']
+            dnsmasq_replace_resolv_conf = False
             net = injector_access('bridge_net')
             
             class net_config(NetworkConfigModel):
@@ -65,6 +67,7 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
                     net=injector_access('bridge_net'),
                     v4_config=V4Config(
                         address='10.20.100.2',
+                        dns_servers=('10.20.100.1'),
                         dhcp=False
                     )
                 )
