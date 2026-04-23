@@ -1,12 +1,3 @@
-# Copyright (C) 2026, Hadron Industries.
-# Carthage is free software; you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License version 3
-# as published by the Free Software Foundation. It is distributed
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the file
-# LICENSE for details.
-
-
 import asyncio
 from carthage import *
 from carthage import podman, libvirt
@@ -22,8 +13,9 @@ class WhsBaseImage(DebianBaseContainer, podman.PodmanImageModel):
 
     oci_image_tag = 'localhost/whs-base-image'
     base_image = 'debian:trixie'
+    oci_image_command = ['/sbin/init']
 
-    class install_guest_agent(FilesystemCustomization):
+    class install_prereqs(FilesystemCustomization):
         @setup_task('Create netdev group')
         async def create_netdev_group(self):
             await self.run_command('groupadd', '--system', 'netdev')
