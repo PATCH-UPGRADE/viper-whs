@@ -1,4 +1,3 @@
-import { Link } from "lucide-react";
 import type React from "react";
 
 export const AppSidebar: React.FC = () => {
@@ -15,7 +14,10 @@ export const AppSidebar: React.FC = () => {
           >
             <span className="mx-3">Devices</span>
           </a>
-          <a href="/images" className="flex items-center px-6 py-3 mt-2 text-gray-600 hover:bg-gray-100 hover:text-gray-700 transition-colors">
+          <a
+            href="/images"
+            className="flex items-center px-6 py-3 mt-2 text-gray-600 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          >
             <span className="mx-3">Images</span>
           </a>
         </nav>

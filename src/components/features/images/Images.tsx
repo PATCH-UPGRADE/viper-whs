@@ -6,7 +6,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { PlusIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,9 +28,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { columns } from "./columns"
-import { ImageUploadFormValues, imageUploadInputSchema, Image } from "./types";
+import { columns } from "./columns";
 import { getImages, useUploadImage } from "./hooks";
+import {
+  type Image,
+  type ImageUploadFormValues,
+  imageUploadInputSchema,
+} from "./types";
 
 export const VmImageUploadModal = ({
   form,
@@ -45,12 +49,8 @@ export const VmImageUploadModal = ({
   isUpdate?: boolean;
 }) => {
   const onSubmit = (values: ImageUploadFormValues) => {
-    
-
     handleCreate(values);
   };
-
-  const fileUploadInputRef = useRef<HTMLInputElement>(null);
 
   const isPending = form.formState.isSubmitting;
 
@@ -68,7 +68,6 @@ export const VmImageUploadModal = ({
             className="px-6"
           >
             <div className="no-scrollbar -mx-6 px-6 py-4 max-h-[60vh] overflow-y-auto grid gap-6">
-
               <FormField
                 control={form.control}
                 name="file"
@@ -79,10 +78,11 @@ export const VmImageUploadModal = ({
                       Provide any additional details here
                     </FormDescription>
                     <FormControl>
-                      <Input type="file"
+                      <Input
+                        type="file"
                         accept=".qcow2"
                         onChange={(e) => {
-                          field.onChange(e.target.files?.[0])
+                          field.onChange(e.target.files?.[0]);
                         }}
                       />
                     </FormControl>
@@ -95,7 +95,7 @@ export const VmImageUploadModal = ({
                 control={form.control}
                 name="description"
                 render={({ field }) => (
-                    <FormItem>
+                  <FormItem>
                     <FormLabel>Description</FormLabel>
                     <FormDescription>
                       Provide any additional details here
@@ -112,23 +112,22 @@ export const VmImageUploadModal = ({
                 control={form.control}
                 name="version"
                 render={({ field }) => (
-                <FormItem>
+                  <FormItem>
                     <FormLabel>Version</FormLabel>
                     <FormDescription>
                       A given version name or number
                     </FormDescription>
                     <FormControl>
-                    <Input
+                      <Input
                         type="text"
                         placeholder="e.g., v1.0.0"
                         {...field}
-                    />
+                      />
                     </FormControl>
                     <FormMessage />
-                </FormItem>
+                  </FormItem>
                 )}
               />
-
             </div>
           </form>
         </Form>
@@ -146,7 +145,6 @@ export const VmImageUploadModal = ({
 };
 
 export const ImagesContainer = () => {
-
   const {
     data: images,
     isPending,
@@ -170,10 +168,12 @@ export const ImagesContainer = () => {
   });
 
   const handleCreate = (item: ImageUploadFormValues) => {
+    // repack data as FormData so the browser auto sets the header to
+    // Content-Type: multipart/form-data. the browser has to do it itself
     const formData = new FormData();
-    formData.append('file', item.file);
-    formData.append('description', item.description);
-    formData.append('version', item.version);
+    formData.append("file", item.file);
+    formData.append("description", item.description);
+    formData.append("version", item.version);
 
     uploadImage.mutate(formData, {
       onSuccess: () => {
