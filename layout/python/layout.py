@@ -15,7 +15,6 @@ from pathlib import Path
 
 root_path = Path(__file__).parent.parent
 assignments_path = root_path/"assignments.yml"
-dhcp_service_address = '10.20.100.2'
 
 @inject(model_store=ModelStore, ainjector=AsyncInjector)
 async def build_layout(model_store, ainjector) -> CarthageLayout:
@@ -52,12 +51,10 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
                 net=injector_access('bridge_net'), 
                 v4_config=V4Config(dhcp=True))
             
-        class dhcp_dns(DhcpRole, SystemdNetworkModelMixin, MachineModel):
+        class router(DhcpRole, SystemdNetworkModelMixin, MachineModel):
             override_dependencies = True
             add_provider(machine_implementation_key, dependency_quote(PodmanContainer))
             add_provider(oci_container_image, injector_access(WhsBaseImage))
-            add_provider(InjectionKey(NetworkConfig), dependency_quote(None))
-            podman_options = ['--cap-add=NET_ADMIN', '--cap-add=NET_RAW', '--network=podman', '--sysctl', 'net.ipv4.ip_forward=1']
             dnsmasq_replace_resolv_conf = False
             net = injector_access('bridge_net')
             
@@ -87,6 +84,7 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
                         'eth0',
                         mac=persistent_random_mac, # TODO: Use device mac from model_store
                         net=injector_access('bridge_net'),
+                        v4_config=V4Config(dhcp=True),
                     )
             return whs_vm
 
@@ -100,5 +98,13 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
             console_needed = True
             add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
             add_provider(carthage.libvirt.vm_image_key, whs_vm_image)
+
+            class net_config(NetworkConfigModel):
+                add(
+                    'eth0',
+                    mac=persistent_random_mac,
+                    net=injector_access('bridge_net'),
+                    v4_config=V4Config(dhcp=True),
+                    )
 
     return await ainjector(layout)
