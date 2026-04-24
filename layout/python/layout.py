@@ -29,7 +29,7 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
         from .images import WhsBaseImage, whs_vm_image
         add_provider(podman_container_host, LocalPodmanContainerHost)
         add_provider(persistent_seed_path, assignments_path)
-        add_provider(MachineDependency(f'dhcp_dns.{domain}'))
+        add_provider(MachineDependency(f'router.{domain}'))
 
         @provides('bridge_net')
         class net(NetworkModel):
@@ -55,6 +55,7 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
             override_dependencies = True
             add_provider(machine_implementation_key, dependency_quote(PodmanContainer))
             add_provider(oci_container_image, injector_access(WhsBaseImage))
+            podman_options = ['--cap-add=NET_ADMIN', '--cap-add=NET_RAW', '--sysctl', 'net.ipv4.ip_forward=1']
             dnsmasq_replace_resolv_conf = False
             net = injector_access('bridge_net')
             
@@ -64,7 +65,8 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
                     net=injector_access('bridge_net'),
                     v4_config=V4Config(
                         address='10.20.100.2',
-                        dns_servers=('10.20.100.1'),
+                        dns_servers=('10.20.100.1', 
+                                    ),
                         dhcp=False
                     )
                 )
