@@ -26,7 +26,7 @@ class WhsBaseImage(DebianBaseContainer, podman.PodmanImageModel):
 
         @setup_task('Install packages')
         async def install_packages(self):
-            await self.run_command('apt-get', '-y', 'install', 'openssh-server', 'systemd-resolved', 'udev', 'iputils-ping')
+            await self.run_command('apt-get', '-y', 'install', 'openssh-server', 'systemd-resolved', 'systemd-sysv', 'udev', 'iputils-ping')
         
         guest_agent = customization_task(libvirt.InstallQemuAgent)
 
