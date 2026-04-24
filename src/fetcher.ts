@@ -10,7 +10,6 @@ export const carthageFetcher = async <T>(
 ): Promise<T> => {
   const response = await fetch(`http://${CARTHAGE_API_URL}${endpointUrl}`, {
     headers: {
-      "Content-Type": "application/json",
       ...options?.headers,
     },
     ...options,
