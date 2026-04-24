@@ -3,6 +3,10 @@ from pydantic import BaseModel, ConfigDict, Field, IPvAnyAddress
 from pathlib import Path
 import yaml
 from uuid import uuid4
+''' Models representing objects that have been statically added to a
+topology layout in the WHS. These are things that ultimately come from
+the API users.
+'''
 
 __all__ = [
     'IdentifiedModel',
