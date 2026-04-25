@@ -105,9 +105,15 @@ def layout(ainjector, loop):
 
 
 @pytest.fixture
-def app(ainjector, state_dir):
+def app(ainjector, state_dir, loop):
     dist_root = state_dir / "dist"
     dist_root.mkdir(parents=True, exist_ok=True)
     app = asyncio.get_event_loop().run_until_complete(ainjector.get_instance_async(web_app_key))
     assert isinstance(app, FastAPI)
-    return app
+    yield app
+
+    pending = [task for task in asyncio.all_tasks(loop) if not task.done()]
+    for task in pending:
+        task.cancel()
+    if pending:
+        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))

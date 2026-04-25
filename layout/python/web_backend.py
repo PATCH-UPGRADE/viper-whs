@@ -16,6 +16,7 @@ from carthage import (
 from carthage.modeling import CarthageLayout
 from carthage.dependency_injection import instantiation_roots
 from .models import *
+from .dynamic_models import FrontendDeploymentResult, map_deployment_result
 
 def get_ainjector(request:Request)->AsyncInjector:
     return request.app.state.layout.ainjector
@@ -101,17 +102,23 @@ async def run_deployment(request:Request, layout:layout_dependency):
             state.deployables = await ainjector(
                 deployment.find_deployables)
             state.deployment_result = await ainjector(
-                deployment.run_deployment, deployabels=state.deployables)
+                deployment.run_deployment, deployables=state.deployables)
             
     state = request.app.state
     if state.deployment_lock.locked():
         raise HTTPException(status_code=409, detail="deployment running")
+    state.deployment_result = None
     asyncio.ensure_future(deployment_task())
 
 @api_v1.get('/deployment-status')
-async def deployment_status()->FrontendDeploymentResult|None:
+async def deployment_status(request: Request) -> FrontendDeploymentResult | None:
     result = running_deployment()
-    return result
+    if result is None:
+        result = request.app.state.deployment_result
+        if result is None:
+            return None
+        return map_deployment_result(result)
+    return map_deployment_result(result, running=True)
 
 web_server_key = InjectionKey('viper_whs.webserver')
 web_app_key = InjectionKey('viper_whs.app')
@@ -125,6 +132,7 @@ async def build_web_app(layout, plugin, injector):
     app.state.layout = layout
     #: This lock should be held while calling run_deploy or run_deployment_destroy or regenerating the layout. In general  frontend should return 409 rather than blocking on this lock. The only thing that should block on this lock is a background replace of the layout.
     app.state.deployment_lock = asyncio.Lock()
+    app.state.deployment_result = None
     #: The task of a layout regeneration that has not yet started. If
     #a model change is made and this is non-None, no regeneration
     #needs to be queued. This should be cleared in the regeneration
