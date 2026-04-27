@@ -29,7 +29,7 @@ class VmImage(IdentifiedModel):
 
     name: str = Field(description='Name of the image', min_length=1, max_length=64)
     description: str = Field(description='Description or tags', default='')
-    version: float = Field(default=1.00)
+    version: str = Field(description='Version name or number or both', default='', max_length=24)
     type: Literal['qcow2', 'raw'] = Field(description='Type of image being used, qcow2 or raw', default='raw')
 
 class ContainerImage(IdentifiedModel):
