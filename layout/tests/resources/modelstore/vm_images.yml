@@ -1,0 +1,5 @@
+sdr_img:
+  name: sdr_img
+  description: Siemens Digital Radiography
+  version: "v13.37"
+  type: qcow2

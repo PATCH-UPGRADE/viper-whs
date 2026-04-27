@@ -1,0 +1,17 @@
+tester01:
+  name: tester01
+  description: Test device information
+  type: vm
+  cloud_init: true
+  architecture: x86_64
+  cpus: 4
+  memory: 4096
+  disk: 20
+  disk_controller: virtio
+  display: false
+  image_id: sdr_img
+  dhcp: true
+  mac_address: null
+  ipv4_manual: null
+  gateway: null
+  dns_servers: []

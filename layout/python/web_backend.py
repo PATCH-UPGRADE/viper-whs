@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import os
 import shutil
@@ -6,11 +8,19 @@ from fastapi.responses import JSONResponse
 import uvicorn
 from fastapi import FastAPI, APIRouter, Depends, Form, HTTPException, Request, File, UploadFile
 from fastapi.staticfiles import StaticFiles
-from carthage import AsyncInjector, ConfigLayout, inject, InjectionKey, CarthagePlugin, base_injector
+from carthage import (
+    AsyncInjector,
+    ConfigLayout,
+    base_injector,
+    Injector,
+    inject,
+    InjectionKey,
+    CarthagePlugin,
+    deployment)
 from carthage.modeling import CarthageLayout
-from carthage.deployment import DeploymentIntrospection, DeploymentResult
 from carthage.dependency_injection import instantiation_roots
 from .models import *
+from .dynamic_models import FrontendDeploymentResult, map_deployment_result
 
 def get_ainjector(request:Request)->AsyncInjector:
     return request.app.state.layout.ainjector
@@ -21,9 +31,9 @@ def get_layout(request:Request)-> CarthageLayout:
 def get_model_store(request:Request)->ModelStore:
     return request.app.state.model_store
 
-def running_deployment()-> DeploymentResult | None:
+def running_deployment()-> deployment.DeploymentResult | None:
     for r in instantiation_roots:
-        if isinstance(r, DeploymentIntrospection):
+        if isinstance(r, deployment.DeploymentIntrospection):
             return r.result
     return None
 
@@ -41,15 +51,15 @@ async def regenerate_layout(request:Request):
     Only allows one regeneration to be pending at a time.
     '''
     state = request.app.state
-    base_injector = request.app.state.base_injector
+    injector = request.app.state.base_injector
     if state.regeneration_task:
         return
     state.regeneration_task = asyncio.current_task()
     async with state.deployment_lock:
         state.regeneration_task = None
         from .layout import build_layout
-        base_injector.replace_provider(InjectionKey(CarthageLayout), build_layout)
-        ainjector = AsyncInjector(base_injector)
+        injector.replace_provider(InjectionKey(CarthageLayout), build_layout)
+        ainjector = AsyncInjector(injector)
         state.layout = await ainjector.get_instance_async(CarthageLayout)
 
 
@@ -85,8 +95,39 @@ async def delete_device(device_id:str, request:Request, model_store:model_store_
     model_store.save()
     asyncio.ensure_future(regenerate_layout(request))
 
+@api_v1.post('/deploy')
+async def run_deployment(request:Request, layout:layout_dependency):
+    '''
+    Start a deployment of the current layout.
+    '''
+    async def deployment_task():
+        async with state.deployment_lock:
+            ainjector = layout.ainjector
+            state.deployables = await ainjector(
+                deployment.find_deployables)
+            state.deployment_result = await ainjector(
+                deployment.run_deployment, deployables=state.deployables)
+            
+    state = request.app.state
+    if state.deployment_lock.locked():
+        raise HTTPException(status_code=409, detail="deployment running")
+    state.deployment_result = None
+    asyncio.ensure_future(deployment_task())
+
+@api_v1.get('/deployment-status')
+async def deployment_status(request: Request) -> FrontendDeploymentResult | None:
+    result = running_deployment()
+    if result is None:
+        result = request.app.state.deployment_result
+        if result is None:
+            return None
+        return map_deployment_result(result)
+    return map_deployment_result(result, running=True)
+
+web_server_key = InjectionKey('viper_whs.webserver')
+web_app_key = InjectionKey('viper_whs.app')
 @api_v1.get("/images")
-async def get_devices(model_store:model_store_dependency)-> list[VmImage]:
+async def get_images(model_store:model_store_dependency)-> list[VmImage]:
     return list(model_store.vm_images.values())
 
 @api_v1.post("/images/upload")
@@ -122,12 +163,14 @@ async def upload_image(request:Request, model_store:model_store_dependency, file
 
 @inject(
     layout=InjectionKey(CarthageLayout, _ready=False),
-    plugin=InjectionKey(CarthagePlugin, name='viper-whs'))
-async def start_web_server(layout, plugin):
+    plugin=InjectionKey(CarthagePlugin, name='viper-whs'),
+    injector=Injector)
+async def build_web_app(layout, plugin, injector):
     app = FastAPI()
     app.state.layout = layout
     #: This lock should be held while calling run_deploy or run_deployment_destroy or regenerating the layout. In general  frontend should return 409 rather than blocking on this lock. The only thing that should block on this lock is a background replace of the layout.
     app.state.deployment_lock = asyncio.Lock()
+    app.state.deployment_result = None
     #: The task of a layout regeneration that has not yet started. If
     #a model change is made and this is non-None, no regeneration
     #needs to be queued. This should be cleared in the regeneration
@@ -135,16 +178,19 @@ async def start_web_server(layout, plugin):
     #by the new layout so that future changes will force a new
     #regeneration.
     app.state.regeneration_task = None
-    app.state.base_injector = base_injector
-    app.state.model_store = base_injector.get_instance(ModelStore)
+    app.state.injector = injector
+    app.state.base_injector = injector
+    app.state.model_store = injector.get_instance(ModelStore)
     app.include_router(api_v1)
     if (plugin.resource_dir/'../dist').exists():
         app.mount('/', StaticFiles(directory=plugin.resource_dir/'../dist', html=True), name='frontend')
+        return app
+
+@inject(app=web_app_key)
+async def start_web_server(app):
     config = uvicorn.Config(app,
                              port=int(os.environ.get('PORT', 8080)),
                              host='0.0.0.0',
                             )
     server = uvicorn.Server(config)
     asyncio.get_event_loop().create_task(server.serve())
-
-web_server_key = InjectionKey('viper_whs.webserver')
