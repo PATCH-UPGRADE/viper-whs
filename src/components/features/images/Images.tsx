@@ -80,7 +80,7 @@ export const VmImageUploadModal = ({
                     <FormControl>
                       <Input
                         type="file"
-                        accept=".qcow2"
+                        accept=".qcow2 .raw"
                         onChange={(e) => {
                           field.onChange(e.target.files?.[0]);
                         }}

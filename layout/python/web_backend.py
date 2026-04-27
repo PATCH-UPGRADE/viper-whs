@@ -89,14 +89,15 @@ async def delete_device(device_id:str, request:Request, model_store:model_store_
 async def get_devices(model_store:model_store_dependency)-> list[VmImage]:
     return list(model_store.vm_images.values())
 
-ALLOWED_VM_IMAGE_EXTENSIONS = ["qcow2"]
-
 @api_v1.post("/images/upload")
 async def upload_image(request:Request, model_store:model_store_dependency, file: UploadFile = File(...), description: str = Form(...), version: str = Form(...), )-> str:
     filename = file.filename
 
     # splitext returns ['name', '.ext'] but we want the ext without the dot
     extension = os.path.splitext(filename)[1][1:].lower()
+    if not extension in VmImage.type:
+        raise HTTPException(status_code=400, detail=f"Invalid extension type. Supported extensions are [{VmImage.type}]")
+
     image_model = VmImage(name=filename, type=extension, description=description, version=version)
 
     config = await get_ainjector(request)(ConfigLayout)

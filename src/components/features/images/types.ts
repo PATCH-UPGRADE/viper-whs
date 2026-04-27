@@ -20,7 +20,9 @@ export const imageUploadInputSchema = z.object({
   version: z.string(),
 });
 
-export const imageUploadResponseSchema = z.object(z.any());
+export const imageUploadResponseSchema = z.object({
+  message: z.string(),
+});
 
 export type Image = z.infer<typeof imageOutputSchema>;
 export type ImageUploadFormValues = z.infer<typeof imageUploadInputSchema>;
