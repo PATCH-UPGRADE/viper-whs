@@ -6,19 +6,26 @@ export enum ImageType {
   container,
 }
 
-export const imageInputSchema = z.object({
-  name: z.string().min(1),
+export const imageOutputSchema = z.object({
+  id: z.string(),
+  name: z.string(),
   description: z.string(),
-  version: z.float32(),
-  type: z.enum(ImageType),
+  version: z.string(),
+  type: z.string(),
 });
 
-export const imageOutputSchema = z.object({});
+export const imageUploadInputSchema = z.object({
+  file: z.instanceof(File),
+  description: z.string(),
+  version: z.string(),
+});
 
-export const imagesOutputSchema = z.array(imageInputSchema);
+export const imageUploadResponseSchema = z.object({
+  message: z.string(),
+});
 
-export const createInputSchema = z.object({});
-
-export type ImageInput = z.infer<typeof imageInputSchema>;
-export type ImageResponse = z.infer<typeof imageOutputSchema>;
-export type ImagesResponse = z.infer<typeof imagesOutputSchema>;
+export type Image = z.infer<typeof imageOutputSchema>;
+export type ImageUploadFormValues = z.infer<typeof imageUploadInputSchema>;
+export type UploadImageResponseSchema = z.infer<
+  typeof imageUploadResponseSchema
+>;

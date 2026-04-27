@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Annotated
+import shutil
+from typing import Annotated, TypeGuard, get_args
+from fastapi.responses import JSONResponse
 import uvicorn
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request
+from fastapi import FastAPI, APIRouter, Depends, Form, HTTPException, Request, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from carthage import (
     AsyncInjector,
+    ConfigLayout,
+    base_injector,
     Injector,
     inject,
     InjectionKey,
@@ -58,7 +62,7 @@ async def regenerate_layout(request:Request):
         ainjector = AsyncInjector(injector)
         state.layout = await ainjector.get_instance_async(CarthageLayout)
 
-    
+
 
 
 api_v1 = APIRouter(prefix="/api/v1")
@@ -122,6 +126,40 @@ async def deployment_status(request: Request) -> FrontendDeploymentResult | None
 
 web_server_key = InjectionKey('viper_whs.webserver')
 web_app_key = InjectionKey('viper_whs.app')
+@api_v1.get("/images")
+async def get_images(model_store:model_store_dependency)-> list[VmImage]:
+    return list(model_store.vm_images.values())
+
+@api_v1.post("/images/upload")
+async def upload_image(request:Request, model_store:model_store_dependency, file: UploadFile = File(...), description: str = Form(...), version: str = Form(...), )-> str:
+    filename = file.filename
+
+    # splitext returns ['name', '.ext'] but we want the ext without the dot
+    extension = os.path.splitext(filename)[1][1:].lower()
+    if not extension in VmImage.type:
+        raise HTTPException(status_code=400, detail=f"Invalid extension type. Supported extensions are [{VmImage.type}]")
+
+    image_model = VmImage(name=filename, type=extension, description=description, version=version)
+
+    config = await get_ainjector(request)(ConfigLayout)
+    vm_image_path = f"{config.vm_image_dir}/images"
+    os.makedirs(vm_image_path, exist_ok=True)
+    file_path = f"{vm_image_path}/{filename}"
+
+    try:
+        with open(file_path, 'wb') as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Something went wrong!")
+    finally:
+        await file.close()
+
+    model_store.vm_images[image_model.id] = image_model
+    model_store.save()
+
+    return JSONResponse(content = {
+        "message": "Success",
+    })
 
 @inject(
     layout=InjectionKey(CarthageLayout, _ready=False),
@@ -141,6 +179,7 @@ async def build_web_app(layout, plugin, injector):
     #regeneration.
     app.state.regeneration_task = None
     app.state.injector = injector
+    app.state.base_injector = injector
     app.state.model_store = injector.get_instance(ModelStore)
     app.include_router(api_v1)
     if (plugin.resource_dir/'../dist').exists():
