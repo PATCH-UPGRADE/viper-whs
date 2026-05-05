@@ -1,5 +1,11 @@
 import { carthageFetcher } from "@/fetcher";
-import type { TopologiesResponse } from "./types";
+import type { TopologyStatusResponseStatus } from "./types";
 
-export const getTopologies = () =>
-  carthageFetcher<TopologiesResponse>(`/topologies`);
+export const getDeploymentStatus = () =>
+  carthageFetcher<TopologyStatusResponseStatus>(`/deployment-status`);
+
+export const startDeploy = () =>
+  carthageFetcher<null>(`/deploy`, {
+    method: "POST",
+    body: "",
+  });
