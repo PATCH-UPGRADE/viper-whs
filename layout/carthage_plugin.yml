@@ -9,4 +9,5 @@ config:
   container_prefix: 'whs-'
   plugins:
     - carthage.libvirt
+    - carthage.podman
     - https://github.com/hadron/carthage-base
