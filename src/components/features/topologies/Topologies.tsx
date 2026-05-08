@@ -1,48 +1,111 @@
 import { useQuery } from "@tanstack/react-query";
-import { getTopologies } from "./hooks";
-import type { TopologiesResponse } from "./types";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { getDeploymentStatus, startDeploy } from "./hooks";
+import type { TopologyStatusResponseStatus } from "./types";
 
 export const TopologiesContainer = () => {
-  const {
-    data: topologies,
-    isPending,
-    isError,
-    error,
-  } = useQuery({
-    queryKey: ["topologies"],
-    queryFn: getTopologies,
+  const [deployed, setDeployed] = useState(false);
+
+  const { data: status } = useQuery({
+    queryKey: [],
+    queryFn: getDeploymentStatus,
+    refetchInterval: 1000,
   });
 
-  if (isPending) {
-    return <TopologiesLoading />;
-  }
+  const { refetch } = useQuery({
+    queryKey: [],
+    queryFn: startDeploy,
+    enabled: false,
+  });
 
-  if (isError) {
-    console.error(error);
-    return <TopologiesError />;
-  }
+  const startDeployment = () => {
+    setDeployed(true);
+    refetch();
+  };
 
-  return <TopologiesList topologies={topologies} />;
-};
-
-const TopologiesLoading = () => {
-  return <div>Topologies loading...</div>;
-};
-
-const TopologiesError = () => {
-  return <div>An error occured while loading topologies!</div>;
-};
-
-interface TopologiesListI {
-  topologies: TopologiesResponse;
-}
-
-const TopologiesList = ({ topologies }: TopologiesListI) => {
   return (
     <div>
-      {topologies.map((topo, index) => (
-        <div key={index}>{topo.name}</div>
-      ))}
+      <Button
+        onClick={() => startDeployment()}
+        className={cn(
+          "mb-4 text-lg p-4 bg-blue-800",
+          deployed && "bg-gray-500",
+        )}
+        disabled={deployed}
+      >
+        Start
+      </Button>
+      <Button
+        onClick={() => {}}
+        className={cn(
+          "mb-4 text-lg p-4 bg-red-700",
+          !deployed && "bg-gray-500",
+        )}
+      >
+        Stop
+      </Button>
+
+      <DeploymentStatusBlock status={status} deployed={deployed} />
+    </div>
+  );
+};
+
+interface DeploymentStatusBlockI {
+  status: TopologyStatusResponseStatus | undefined;
+  deployed: boolean;
+}
+
+const DeploymentStatusBlock = ({
+  status,
+  deployed,
+}: DeploymentStatusBlockI) => {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="text-lg gap-2">
+        <div className="font-bold">Running:</div>
+        <div className="pl-4">
+          {status?.running.toString() ?? deployed.toString()}
+        </div>
+      </div>
+
+      <div className="text-lg gap-2">
+        <div className="font-bold">Successes:</div>
+        <div className="pl-4">
+          {status?.successes.length ? status.successes : "n/a"}
+        </div>
+      </div>
+
+      <div className="text-lg gap-2">
+        <div className="font-bold">Failures:</div>
+        <div className="pl-4">
+          {status?.failures.length ? status.failures : "n/a"}
+        </div>
+      </div>
+
+      <div className="text-lg gap-2">
+        <div className="font-bold">Dependency Failures:</div>
+        <div className="pl-4">
+          {status?.dependency_failures.length
+            ? status.dependency_failures
+            : "n/a"}
+        </div>
+      </div>
+
+      <div className="text-lg gap-2">
+        <div className="font-bold">Ignored:</div>
+        <div className="pl-4">
+          {status?.ignored.length ? status.ignored : "n/a"}
+        </div>
+      </div>
+
+      <div className="text-lg gap-2">
+        <div className="font-bold">Orphans:</div>
+        <div className="pl-4">
+          {status?.orphans.length ? status.orphans : "n/a"}
+        </div>
+      </div>
     </div>
   );
 };
