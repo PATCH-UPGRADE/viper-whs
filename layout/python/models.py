@@ -13,6 +13,7 @@ __all__ = [
     'VmImage',
     'ContainerImage',
     'Device',
+    'Pcap',
     'ModelStore',
 ]
 
@@ -69,12 +70,20 @@ class Device(IdentifiedModel):
     gateway: Optional[IPvAnyAddress] = Field(description='Default gateway', default=None)
     dns_servers: list[IPvAnyAddress] = Field(default_factory=list)
 
+class Pcap(IdentifiedModel):
+    model_config = default_model_config
+    id: str = Field(default_factory=lambda: uuid4().hex)
+
+    name: str = Field(description='Name of the pcap', min_length=3, max_length=20)
+    description: str = Field(description='Description or tags', default='')
+
 class ModelStore(BaseModel):
     model_config = default_model_config
 
     vm_images: dict[str, VmImage] = Field(default_factory=dict)
     container_images: dict[str, ContainerImage] = Field(default_factory=dict)
     devices: dict[str, Device] = Field(default_factory=dict)
+    pcaps: dict[str, Pcap] = Field(default_factory=dict)
     model_dir: Path = Field(default=Path(__file__).with_name('models'))
 
     def _load_model_file(self, path: Path, model_class: type[ModelType]) -> dict[str, ModelType]:
@@ -121,6 +130,7 @@ class ModelStore(BaseModel):
         self.vm_images = self._load_model_file(self.model_dir / 'vm_images.yml', VmImage)
         self.container_images = self._load_model_file(self.model_dir / 'container_images.yml', ContainerImage)
         self.devices = self._load_model_file(self.model_dir / 'devices.yml', Device)
+        self.pcaps = self._load_model_file(self.model_dir / 'pcaps.yml', Pcap)
         return self
 
     def save(self) -> 'ModelStore':
@@ -131,6 +141,7 @@ class ModelStore(BaseModel):
         self._save_model_file(self.model_dir / 'vm_images.yml', self.vm_images)
         self._save_model_file(self.model_dir / 'container_images.yml', self.container_images)
         self._save_model_file(self.model_dir / 'devices.yml', self.devices)
+        self._save_model_file(self.model_dir / 'pcaps.yml', self.pcaps)
         return self
 
     def get_device_image(self, device: Device) -> Optional[VmImage | ContainerImage]:
@@ -167,6 +178,10 @@ if __name__ == '__main__':
         description = 'Test device information',
         cpus = 4,
         image_id = test_image.id,
+    )
+    test_pcap = Pcap(
+        name='test_pcap',
+        description = 'Test pcap'
     )
     test_store = ModelStore(
         vm_images = {test_image.id: test_image},

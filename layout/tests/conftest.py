@@ -70,6 +70,7 @@ def injector(state_dir: Path):
     config.cache_dir = str(state_dir / "cache")
     config.log_dir = str(state_dir / "log")
     config.vm_image_dir = str(state_dir / "vm")
+    config.pcap_dir = str(state_dir / "pcap")
     config.local_run_dir = str(state_dir)
     config.delete_volumes = True
     config.persist_local_networking = False

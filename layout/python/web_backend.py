@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
-from typing import Annotated, TypeGuard, get_args
+import struct
+from typing import Annotated
 from fastapi.responses import JSONResponse
 import uvicorn
 from fastapi import FastAPI, APIRouter, Depends, Form, HTTPException, Request, File, UploadFile
@@ -21,6 +22,7 @@ from carthage.modeling import CarthageLayout
 from carthage.dependency_injection import instantiation_roots
 from .models import *
 from .dynamic_models import FrontendDeploymentResult, map_deployment_result
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 def get_ainjector(request:Request)->AsyncInjector:
     return request.app.state.layout.ainjector
@@ -161,6 +163,105 @@ async def upload_image(request:Request, model_store:model_store_dependency, file
         "message": "Success",
     })
 
+@api_v1.get("/pcaps")
+async def get_pcaps(model_store:model_store_dependency)-> list[Pcap]:
+    return list(model_store.pcaps.values())
+
+@api_v1.delete('/pcaps/{pcap_id}')
+async def delete_pcap(pcap_id:str, model_store:model_store_dependency):
+    if not pcap_id in model_store.pcaps:
+        raise HTTPException(status_code=404, detail="PCAP not found")
+
+    model_store.pcaps.pop(pcap_id)
+    model_store.save()
+
+PCAP_MAGIC_BYTES = [
+    b'\xa1\xb2\xc3\xd4', 
+    b'\xa1\xb2\x3c\x4d',
+    b'\xd4\xc3\xb2\xa1',
+    b'\x4d\x3c\xb2\xa1',
+]
+@api_v1.post("/pcaps/upload")
+async def upload_pcap(request:Request, model_store:model_store_dependency, file: UploadFile = File(...), description: str = Form(...)):
+    # read first 4 bytes then reset pointer
+    magic_bytes = await file.read(4)
+    await file.seek(0)
+
+    if magic_bytes in (PCAP_MAGIC_BYTES[0], PCAP_MAGIC_BYTES[1]):
+        endian = ">"
+    elif magic_bytes in (PCAP_MAGIC_BYTES[2], PCAP_MAGIC_BYTES[3]):
+        endian = "<"
+    else:
+        raise HTTPException(
+            status_code=400, 
+            detail="Invalid file format. Not a valid .pcap file."
+        )
+
+    header = await file.read(24)
+    await file.seek(0)
+
+    if len(header) < 24:
+        raise HTTPException(
+            status_code=400, 
+            detail="Header number of bytes too small to be a valid .pcap file"
+        )
+
+    header = header[4:24]
+    major, minor, _, _, snaplen, network = struct.unpack(f"{endian}HHiIII", header)
+
+    if major != 2 or minor != 4:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unexpected .pcap file version found [v{major}.{minor}]"
+        )
+    
+    # 262_144 is common max size for snaplen per google search
+    if snaplen <= 0 or snaplen >= 262_144:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unexpected snaplen value of [{snaplen}]"
+        )
+
+    if network <= 0 or snaplen > 65535:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid network value of [{network}]"
+        )
+
+    config = await get_ainjector(request)(ConfigLayout)
+    pcap_storage_path = f"{config.vm_image_dir}/images"
+
+    filename = file.filename
+    pcap_model = Pcap(name=filename, description=description)
+
+    os.makedirs(pcap_storage_path, exist_ok=True)
+    file_path = f"{pcap_storage_path}/{filename}"
+
+    try:
+        with open(file_path, 'wb') as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Something went wrong!")
+    finally:
+        await file.close()
+
+    model_store.pcaps[pcap_model.id] = pcap_model
+    model_store.save()
+
+    return JSONResponse(content = {
+        "message": "Success",
+    })
+
+class SinglePageApplicationStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        # try and get path, if it fails return index.html so SPA routing works in prod
+        try:
+            return await super().get_response(path, scope)
+        except (StarletteHTTPException, Exception) as ex:
+            if getattr(ex, "status_code", None) == 404:
+                return await super().get_response("index.html", scope)
+            raise ex
+
 @inject(
     layout=InjectionKey(CarthageLayout, _ready=False),
     plugin=InjectionKey(CarthagePlugin, name='viper-whs'),
@@ -182,8 +283,9 @@ async def build_web_app(layout, plugin, injector):
     app.state.base_injector = injector
     app.state.model_store = injector.get_instance(ModelStore)
     app.include_router(api_v1)
+
     if (plugin.resource_dir/'../dist').exists():
-        app.mount('/', StaticFiles(directory=plugin.resource_dir/'../dist', html=True), name='frontend')
+        app.mount('/', SinglePageApplicationStaticFiles(directory=plugin.resource_dir/'../dist', html=True), name='frontend')
         return app
 
 @inject(app=web_app_key)

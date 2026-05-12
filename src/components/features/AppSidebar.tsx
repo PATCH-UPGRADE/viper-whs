@@ -5,6 +5,7 @@ const urls = [
   { name: "Devices", path: "/devices" },
   { name: "Images", path: "/images" },
   { name: "Topologies", path: "/topologies" },
+  { name: "Pcaps", path: "/pcaps" },
 ];
 
 export const AppSidebar: React.FC = () => {
