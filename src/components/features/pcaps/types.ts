@@ -17,6 +17,4 @@ export const pcapUploadResponseSchema = z.object({
 
 export type Pcap = z.infer<typeof pcapOutputSchema>;
 export type PcapUploadFormValues = z.infer<typeof pcapUploadInputSchema>;
-export type UploadPcapResponseSchema = z.infer<
-  typeof pcapUploadResponseSchema
->;
+export type UploadPcapResponseSchema = z.infer<typeof pcapUploadResponseSchema>;

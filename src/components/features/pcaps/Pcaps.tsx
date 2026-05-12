@@ -29,8 +29,12 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { columns } from "./columns";
-import { Pcap, PcapUploadFormValues, pcapUploadInputSchema } from "./types";
 import { getPcaps, useUploadPcap } from "./hooks";
+import {
+  type Pcap,
+  type PcapUploadFormValues,
+  pcapUploadInputSchema,
+} from "./types";
 
 export const PcapUploadForm = ({
   form,
@@ -103,7 +107,6 @@ export const PcapUploadForm = ({
                   </FormItem>
                 )}
               />
-
             </div>
           </form>
         </Form>

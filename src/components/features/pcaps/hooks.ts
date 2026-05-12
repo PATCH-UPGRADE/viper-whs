@@ -25,7 +25,6 @@ export const useUploadPcap = () => {
   });
 };
 
-
 export const useDeletePcap = () => {
   const queryClient = useQueryClient();
 

@@ -1,8 +1,8 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import type { Pcap } from "./types";
-import { Button } from "@/components/ui/button";
 import { TrashIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useDeletePcap } from "./hooks";
+import type { Pcap } from "./types";
 
 export const columns: ColumnDef<Pcap>[] = [
   {
@@ -32,15 +32,15 @@ export const columns: ColumnDef<Pcap>[] = [
       };
 
       return (
-          <Button
-            className=""
-            onClick={handleRemove}
-            disabled={deletePcap.isPending}
-            variant="destructive"
-          >
-            <TrashIcon />
-            Delete
-          </Button>
+        <Button
+          className=""
+          onClick={handleRemove}
+          disabled={deletePcap.isPending}
+          variant="destructive"
+        >
+          <TrashIcon />
+          Delete
+        </Button>
       );
     },
   },
