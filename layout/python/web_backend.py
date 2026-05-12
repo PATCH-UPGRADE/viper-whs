@@ -6,7 +6,7 @@ import shutil
 from typing import Annotated, TypeGuard, get_args
 from fastapi.responses import JSONResponse
 import uvicorn
-from fastapi import FastAPI, APIRouter, Depends, Form, HTTPException, Request, File, UploadFile
+from fastapi import FastAPI, APIRouter, Depends, Form, HTTPException, Request, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from carthage import (
     AsyncInjector,
@@ -160,6 +160,53 @@ async def upload_image(request:Request, model_store:model_store_dependency, file
     return JSONResponse(content = {
         "message": "Success",
     })
+
+@api_v1.websocket("/vnc_websocket")
+async def vnc_websocket_proxy(ws: WebSocket):
+    await ws.accept(subprotocol="binary")
+    client = ws.client
+    
+    try:
+        reader, writer = await asyncio.open_connection("localhost", 4444)
+    except OSError as e:
+        print("ERROR", e)
+        await ws.close(code=1011)
+        return
+
+    async def ws_to_vnc():
+        try:
+            while True:
+                data = await ws.receive_bytes()
+                writer.write(data)
+                await writer.drain()
+        except WebSocketDisconnect:
+            print("Websocket Client disconnected")
+        except Exception as e:
+            writer.close()
+    
+    async def vnc_to_ws():
+        try:
+            while True:
+                data = await reader.read(65536)
+                if not data:
+                    break
+                await ws.send_bytes(data)
+        except Exception as e:
+            print("vnc_to_ws() error:", e)
+        
+        try:
+            await ws.close()
+        except Exception as e:
+            pass
+
+    done, pending = await asyncio.wait([
+        asyncio.create_task(ws_to_vnc(), name="ws-to-vnc"),
+        asyncio.create_task(vnc_to_ws(), name="vnc-to-ws")
+    ], return_when=asyncio.FIRST_COMPLETED)
+
+    for task in pending:
+        task.cancel()
+    print("Session closed")
 
 @inject(
     layout=InjectionKey(CarthageLayout, _ready=False),
