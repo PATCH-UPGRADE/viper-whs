@@ -77,7 +77,7 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
                 name = device.name
                 cpus = device.cpus
                 memory_mb = device.memory
-                console_needed = True
+                console_needed = 'vnc'
                 add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
                 add_provider(carthage.libvirt.vm_image_key, whs_vm_image) # TODO: use device image from model_store
 
