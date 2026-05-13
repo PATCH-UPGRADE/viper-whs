@@ -23,6 +23,8 @@ if CARTHAGE_BASE_ROOT.exists() and str(CARTHAGE_BASE_ROOT) not in sys.path:
     sys.path.insert(0, str(CARTHAGE_BASE_ROOT))
 
 import carthage_base  # noqa: F401
+import carthage.libvirt as carthage_libvirt
+import carthage.podman as carthage_podman
 from carthage import AsyncInjector, ConfigLayout, base_injector, shutdown_injector
 from carthage.dependency_injection import InjectionKey, dependency_quote
 from carthage.modeling import CarthageLayout
@@ -37,6 +39,10 @@ sys.modules.setdefault("layout.models", importlib.import_module("python.models")
 sys.modules.setdefault("layout.web_backend", web_backend)
 from layout.carthage_plugin import carthage_plugin
 
+# Tests call the plugin hook directly, so mirror carthage_plugin.yml dependencies.
+base_injector(carthage_libvirt.carthage_plugin)
+if carthage_podman.PodmanNetwork not in base_injector:
+    base_injector(carthage_podman.carthage_plugin)
 base_injector(carthage_plugin)
 
 @pytest.fixture(scope="session")
