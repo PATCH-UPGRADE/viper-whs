@@ -181,51 +181,104 @@ PCAP_MAGIC_BYTES = [
     b'\xd4\xc3\xb2\xa1',
     b'\x4d\x3c\xb2\xa1',
 ]
+
+PCAPNG_MAGIC_BYTES = [
+    0x0A0D0D0A,
+    0x4D3C2B1A,
+    0x1A2B3C4D,
+]
 @api_v1.post("/pcaps/upload")
 async def upload_pcap(request:Request, model_store:model_store_dependency, file: UploadFile = File(...), description: str = Form(...)):
     # read first 4 bytes then reset pointer
-    magic_bytes = await file.read(4)
+    header = await file.read(28)
     await file.seek(0)
 
-    if magic_bytes in (PCAP_MAGIC_BYTES[0], PCAP_MAGIC_BYTES[1]):
+    if len(header) < 4:
+        raise HTTPException(
+            status_code=400, 
+            detail="Too small to be a valid file"
+        )
+
+    magic_bytes = header[:4]
+    block_type = struct.unpack(">I", magic_bytes)[0]
+
+    # determine pcap type
+    if block_type == PCAPNG_MAGIC_BYTES[0]:
+        file_type = "pcapng"
+    elif magic_bytes in (PCAP_MAGIC_BYTES[0], PCAP_MAGIC_BYTES[1]):
         endian = ">"
+        file_type = "pcap"
     elif magic_bytes in (PCAP_MAGIC_BYTES[2], PCAP_MAGIC_BYTES[3]):
         endian = "<"
+        file_type = "pcap"
     else:
         raise HTTPException(
             status_code=400, 
-            detail="Invalid file format. Not a valid .pcap file."
+            detail="Invalid file format. Not a valid .pcap or .pcapng file."
         )
 
-    header = await file.read(24)
-    await file.seek(0)
+    # validate the pcap type
+    if file_type == "pcap":
+        if len(header) < 24:
+            raise HTTPException(
+                status_code=400, 
+                detail="Header number of bytes too small to be a valid .pcap file"
+            )
 
-    if len(header) < 24:
+        major, minor, _, _, snaplen, network = struct.unpack(f"{endian}HHiIII", header[4:24])
+
+        if major != 2 or minor != 4:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unexpected .pcap file version found [v{major}.{minor}]"
+            )
+        # 262_144 is common max size for snaplen per google search
+        if snaplen <= 0 or snaplen >= 262_144:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unexpected snaplen value of [{snaplen}]"
+            )
+        if network <= 0 or snaplen > 65535:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid network value of [{network}]"
+            )
+
+    elif file_type == "pcapng":
+        if len(header) < 28:
+            raise HTTPException(
+                status_code=400, 
+                detail="Header number of bytes too small to be a valid .pcapng file"
+            )
+
+        bom = struct.unpack(">I", header[8:12])[0]
+        if bom == PCAPNG_MAGIC_BYTES[0]:
+            endian = ">"
+        elif bom == PCAPNG_MAGIC_BYTES[1]:
+            endian = "<"
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid file format. Not a valid .pcapng file."
+            )
+
+        block_len = struct.unpack(f"{endian}I", header[4:8])[0]
+        if block_len < 28:
+            raise HTTPException(
+                status_code=400, 
+                detail="Header number of bytes too small to be a valid .pcapng file"
+            )
+
+        major, minor = struct.unpack(f"{endian}HH", header[12:16])
+        if major != 1 or minor != 0:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unexpected .pcapng file version found [v{major}.{minor}]"
+            )
+    else:
         raise HTTPException(
             status_code=400, 
-            detail="Header number of bytes too small to be a valid .pcap file"
-        )
-
-    header = header[4:24]
-    major, minor, _, _, snaplen, network = struct.unpack(f"{endian}HHiIII", header)
-
-    if major != 2 or minor != 4:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Unexpected .pcap file version found [v{major}.{minor}]"
-        )
-    
-    # 262_144 is common max size for snaplen per google search
-    if snaplen <= 0 or snaplen >= 262_144:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Unexpected snaplen value of [{snaplen}]"
-        )
-
-    if network <= 0 or snaplen > 65535:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid network value of [{network}]"
+            detail=f"Could not determine if correct .pcap / .pcapng from header"
         )
 
     config = await get_ainjector(request)(ConfigLayout)

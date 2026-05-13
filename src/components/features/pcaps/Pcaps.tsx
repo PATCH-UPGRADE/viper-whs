@@ -80,7 +80,7 @@ export const PcapUploadForm = ({
                     <FormControl>
                       <Input
                         type="file"
-                        accept=".pcap"
+                        accept=".pcap, .pcapng"
                         onChange={(e) => {
                           field.onChange(e.target.files?.[0]);
                         }}
