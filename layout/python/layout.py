@@ -19,6 +19,7 @@ assignments_path = root_path/"assignments.yml"
 @inject(model_store=ModelStore, ainjector=AsyncInjector)
 async def build_layout(model_store, ainjector) -> CarthageLayout:
     injector = ainjector.injector
+    config = injector(ConfigLayout)
     model_store.load()
     model_store.validate_references()
     asyncio.ensure_future(ainjector.get_instance_async(web_server_key))
@@ -78,6 +79,12 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
             device_ipv4 = device.ipv4_manual
             device_gateway = device.gateway
             device_dns_servers = device.dns_servers
+            device_image = model_store.get_device_image(device)
+            vm_image = (
+                dependency_quote(Path(config.libvirt.image_dir) / device_image.name)
+                if device_image is not None
+                else whs_vm_image
+            )
 
             @dynamic_name(device.name) # TODO: Should we do something to prevent duplicate machine names?
             class whs_vm(MachineModel):
@@ -90,7 +97,7 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
 
                 console_needed = 'vnc' if device.display==True else True
                 add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
-                add_provider(carthage.libvirt.vm_image_key, whs_vm_image) # TODO: use device image from model_store
+                add_provider(carthage.libvirt.vm_image_key, vm_image)
 
                 class net_config(NetworkConfigModel):
                     if not device_dhcp:
