@@ -53,7 +53,7 @@ class Device(IdentifiedModel):
     type: Literal['vm', 'container'] = Field(description='Type of device, vm or container. Only vm is supported today.', default='vm')
     cloud_init: bool = Field(description='Use cloud init', default=True)
 
-    architecture: Literal['x86_64', 'aarch64'] = Field(description='Architecture of the device, x86_64 or arm_aarch64', default='x86_64')
+    architecture: Literal['x86_64', 'aarch64'] = Field(description='Architecture of the device, x86_64 or aarch64', default='x86_64')
     cpus: int = Field(description='Number of CPUs assigned', default=2)
     memory: int = Field(description='System memory (in MB) assigned', default=4096)
     disk: int = Field(description='Disk size (in MB)', default=20*1024)

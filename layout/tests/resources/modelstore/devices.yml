@@ -3,7 +3,7 @@ tester01:
   description: Test device information
   type: vm
   cloud_init: true
-  architecture: x86_64
+  architecture: aarch64
   cpus: 4
   memory: 4096
   disk: 20
