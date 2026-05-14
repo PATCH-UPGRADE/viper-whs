@@ -270,21 +270,21 @@ export const DeviceCreateUpdateModal = ({
                   <FormItem>
                     <FormLabel>Disk *</FormLabel>
                     <FormDescription>
-                      The amount of disk space (in GBs) the Device should have
+                      The amount of disk space (in MBs) the Device should have
                     </FormDescription>
                     <FormControl>
                       <Input
                         type="number"
-                        placeholder="20"
+                        placeholder="20480"
                         {...field}
                         onChange={(e) => {
                           const value = parseInt(e.target.value, 10);
-                          field.onChange(Number.isNaN(value) ? 20 : value);
+                          field.onChange(Number.isNaN(value) ? 20480 : value);
                         }}
                       />
                     </FormControl>
                     <FormDescription>
-                      Recommended Minimum: 20 GBs
+                      Recommended Minimum: 20480 MBs (20 GBs)
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -535,7 +535,7 @@ export const DevicesContainer = () => {
       cloud_init: false,
       cpus: 2,
       memory: 4096, // Megabytes
-      disk: 20, // Gigabytes
+      disk: 20480, // Megabytes
       disk_controller: "virtio",
       display: false,
       image_id: "",

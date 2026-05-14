@@ -99,6 +99,7 @@ export const columns: ColumnDef<Device>[] = [
     enableHiding: false,
     cell: ({ row }) => {
       const data = row.original;
+      const vncUrl = `/devices/${data.id}`;
 
       const deleteDevice = useDeleteDevice();
       const handleRemove = () => {
@@ -164,6 +165,13 @@ export const columns: ColumnDef<Device>[] = [
             <TrashIcon />
             Delete Device
           </Button>
+
+          <a
+            href={vncUrl}
+            className="bg-blue-300/80 h-8 gap-1.5 px-2.5 py-1 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap"
+          >
+            <span className="mx-3">VNC Viewer</span>
+          </a>
 
           {open && (
             <DeviceCreateUpdateModal
