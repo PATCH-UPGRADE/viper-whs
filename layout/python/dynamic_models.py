@@ -54,8 +54,11 @@ __all__ += ["FrontendDeploymentResult"]
 
 def map_deployable(d: Deployable) -> FrontendDeployable | None:
     match d:
-        case Machine(device_model=Device() as model) as machine:
-            return DeviceDeployable(id=model.id, name=machine.name)
+        case Machine() as machine:
+            device = getattr(getattr(machine, "model", None), "device_model", None)
+            if isinstance(device, Device):
+                return DeviceDeployable(id=device.id, name=machine.name)
+            return None
         case TechnologySpecificNetwork() as net:
             model = net.injector.get_instance(this_network)
             try:

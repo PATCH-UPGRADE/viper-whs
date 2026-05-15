@@ -88,6 +88,7 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
 
             @dynamic_name(device.name) # TODO: Should we do something to prevent duplicate machine names?
             class whs_vm(MachineModel):
+                device_model = device
                 name = device.name
                 architecture = device.architecture
                 cloud_init = device.cloud_init
@@ -95,7 +96,7 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
                 memory_mb = device.memory
                 disk_config = [{'size': device.disk}]
 
-                console_needed = 'vnc' if device.display==True else True
+                console_needed = 'vnc' if device.display==True else False
                 add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
                 add_provider(carthage.libvirt.vm_image_key, vm_image)
 
@@ -121,21 +122,5 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
 
         for id, device in model_store.devices.items():
             new_vm = build_vm(device)
-
-        class linux_vm(MachineModel):
-            name = 'vm01'
-            cpus = 2
-            memory_mb = 1024 * 8
-            console_needed = True
-            add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
-            add_provider(carthage.libvirt.vm_image_key, whs_vm_image)
-
-            class net_config(NetworkConfigModel):
-                add(
-                    'eth0',
-                    mac=persistent_random_mac,
-                    net=injector_access('bridge_net'),
-                    v4_config=V4Config(dhcp=True),
-                    )
 
     return await ainjector(layout)
