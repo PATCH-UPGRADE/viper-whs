@@ -5,7 +5,6 @@ import importlib
 import shutil
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -22,28 +21,34 @@ CARTHAGE_BASE_ROOT = Path(__file__).resolve().parents[4] / "carthage-base"
 if CARTHAGE_BASE_ROOT.exists() and str(CARTHAGE_BASE_ROOT) not in sys.path:
     sys.path.insert(0, str(CARTHAGE_BASE_ROOT))
 
-import carthage_base  # noqa: F401
-import carthage.libvirt as carthage_libvirt
-import carthage.podman as carthage_podman
 from carthage import AsyncInjector, ConfigLayout, base_injector, shutdown_injector
 from carthage.dependency_injection import InjectionKey, dependency_quote
 from carthage.modeling import CarthageLayout
-from carthage.plugins import CarthagePlugin
-from python import layout as layout_module
-from python.models import ModelStore
-import python.web_backend as web_backend
-from python.web_backend import web_app_key, web_server_key
+from carthage.plugins import CarthagePlugin, PluginMappings, load_plugin
 
-sys.modules.setdefault("layout.layout", layout_module)
-sys.modules.setdefault("layout.models", importlib.import_module("python.models"))
-sys.modules.setdefault("layout.web_backend", web_backend)
-from layout.carthage_plugin import carthage_plugin
+if CARTHAGE_BASE_ROOT.exists():
+    base_injector(PluginMappings).add_mapping(
+        {
+            "map": "https://github.com/hadron/carthage-base",
+            "to": str(CARTHAGE_BASE_ROOT),
+            "stop": True,
+        }
+    )
 
-# Tests call the plugin hook directly, so mirror carthage_plugin.yml dependencies.
-base_injector(carthage_libvirt.carthage_plugin)
-if carthage_podman.PodmanNetwork not in base_injector:
-    base_injector(carthage_podman.carthage_plugin)
-base_injector(carthage_plugin)
+base_injector(load_plugin, LAYOUT_ROOT)
+
+layout_plugin = base_injector.get_instance(InjectionKey(CarthagePlugin, name="viper-whs"))
+plugin_package_name = layout_plugin.package.__name__
+layout_module = importlib.import_module(f"{plugin_package_name}.layout")
+models_module = importlib.import_module(f"{plugin_package_name}.models")
+web_backend = importlib.import_module(f"{plugin_package_name}.web_backend")
+ModelStore = models_module.ModelStore
+web_app_key = web_backend.web_app_key
+web_server_key = web_backend.web_server_key
+
+sys.modules.setdefault("python.layout", layout_module)
+sys.modules.setdefault("python.models", models_module)
+sys.modules.setdefault("python.web_backend", web_backend)
 
 @pytest.fixture(scope="session")
 def loop():
@@ -81,13 +86,8 @@ def injector(state_dir: Path):
     config.persist_local_networking = False
 
     model_store = ModelStore(model_dir=state_dir / "model_store").load()
-    plugin_root = state_dir / "plugin"
-    plugin_root.mkdir(parents=True, exist_ok=True)
-    plugin = SimpleNamespace(resource_dir=plugin_root)
-    base_injector.add_provider(InjectionKey(CarthagePlugin, name="viper-whs"), plugin, replace=True)
     injector.add_provider(InjectionKey(CarthageLayout), layout_module.build_layout)
     injector.add_provider(InjectionKey(ModelStore), model_store)
-    injector.add_provider(InjectionKey(CarthagePlugin, name="viper-whs"), plugin)
     injector.add_provider(web_app_key, web_backend.build_web_app, replace=True)
     injector.add_provider(web_server_key, dependency_quote(None))
     return injector
@@ -111,8 +111,10 @@ def layout(ainjector, loop):
 
 
 @pytest.fixture
-def app(ainjector, state_dir, loop):
-    dist_root = state_dir / "dist"
+def app(ainjector, loop):
+    plugin = ainjector.injector.get_instance(InjectionKey(CarthagePlugin, name="viper-whs"))
+    dist_root = (plugin.resource_dir / "../dist").resolve()
+    created_dist_root = not dist_root.exists()
     dist_root.mkdir(parents=True, exist_ok=True)
     app = asyncio.get_event_loop().run_until_complete(ainjector.get_instance_async(web_app_key))
     assert isinstance(app, FastAPI)
@@ -123,3 +125,8 @@ def app(ainjector, state_dir, loop):
         task.cancel()
     if pending:
         loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+    if created_dist_root:
+        try:
+            dist_root.rmdir()
+        except OSError:
+            pass
