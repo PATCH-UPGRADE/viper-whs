@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -10,6 +11,7 @@ import pytest
 from fastapi import FastAPI
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+TEST_VM_IMAGE_DIR_ENV = "WHS_TEST_VM_IMAGE_DIR"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -76,11 +78,12 @@ def state_dir(tmp_path: Path, modelstore_defaults_dir: Path) -> Path:
 def injector(state_dir: Path):
     injector = base_injector.claim()
     config = injector(ConfigLayout)
+    test_vm_image_dir = os.environ.get(TEST_VM_IMAGE_DIR_ENV)
     config.base_dir = str(state_dir.parent)
     config.state_dir = str(state_dir)
-    config.cache_dir = str(state_dir / "cache")
+    config.cache_dir = str(Path(test_vm_image_dir) / "cache" if test_vm_image_dir else state_dir / "cache")
     config.log_dir = str(state_dir / "log")
-    config.vm_image_dir = str(state_dir / "vm")
+    config.vm_image_dir = test_vm_image_dir or str(state_dir / "vm")
     config.local_run_dir = str(state_dir)
     config.delete_volumes = True
     config.persist_local_networking = False

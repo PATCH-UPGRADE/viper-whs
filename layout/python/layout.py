@@ -16,6 +16,7 @@ from pathlib import Path
 root_path = Path(__file__).parent.parent
 assignments_path = root_path/"assignments.yml"
 
+
 @inject(model_store=ModelStore, ainjector=AsyncInjector)
 async def build_layout(model_store, ainjector) -> CarthageLayout:
     injector = ainjector.injector
