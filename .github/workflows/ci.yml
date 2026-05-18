@@ -38,23 +38,6 @@ jobs:
   run-npm-tests:
     name: Run npm tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: testdb
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d testdb"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/testdb
 
     steps:
       - uses: actions/checkout@v4
@@ -70,12 +53,3 @@ jobs:
 
       - name: Run tests
         run: npm run test
-
-  # enforce-pr-naming-convention:
-  #   if: github.event_name == 'pull_request'
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check for [VW-##] prefix
-  #       uses: deepakputhraya/action-pr-title@v1.0.2
-  #       with:
-  #         regex: '^\[VW-[0-9]+\]\s.+'
