@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from pathlib import Path
 import shutil
 import struct
 from typing import Annotated
@@ -176,7 +177,7 @@ async def delete_pcap(pcap_id:str, model_store:model_store_dependency):
     model_store.save()
 
 PCAP_MAGIC_BYTES = [
-    b'\xa1\xb2\xc3\xd4', 
+    b'\xa1\xb2\xc3\xd4',
     b'\xa1\xb2\x3c\x4d',
     b'\xd4\xc3\xb2\xa1',
     b'\x4d\x3c\xb2\xa1',
@@ -187,6 +188,8 @@ PCAPNG_MAGIC_BYTES = [
     0x4D3C2B1A,
     0x1A2B3C4D,
 ]
+
+pcap_dir_key = InjectionKey('viper_whs.pcap_dir')
 @api_v1.post("/pcaps/upload")
 async def upload_pcap(request:Request, model_store:model_store_dependency, file: UploadFile = File(...), description: str = Form(...)):
     # read first 4 bytes then reset pointer
@@ -227,10 +230,10 @@ async def upload_pcap(request:Request, model_store:model_store_dependency, file:
 
         major, minor, _, _, snaplen, network = struct.unpack(f"{endian}HHiIII", header[4:24])
 
-        if major != 2 or minor != 4:
+        if major != 2 and minor != 4:
             raise HTTPException(
-                status_code=400, 
-                detail=f"Unexpected .pcap file version found [v{major}.{minor}]"
+                status_code=400,
+                detail=f"Unexpected .pcap version found [v{major}.{minor}] expected v2.4"
             )
         # 262_144 is common max size for snaplen per google search
         if snaplen <= 0 or snaplen >= 262_144:
@@ -238,7 +241,7 @@ async def upload_pcap(request:Request, model_store:model_store_dependency, file:
                 status_code=400, 
                 detail=f"Unexpected snaplen value of [{snaplen}]"
             )
-        if network <= 0 or snaplen > 65535:
+        if network <= 0 or network > 65535:
             raise HTTPException(
                 status_code=400, 
                 detail=f"Invalid network value of [{network}]"
@@ -281,20 +284,18 @@ async def upload_pcap(request:Request, model_store:model_store_dependency, file:
             detail=f"Could not determine if correct .pcap / .pcapng from header"
         )
 
-    config = await get_ainjector(request)(ConfigLayout)
-    pcap_storage_path = f"{config.vm_image_dir}/images"
-
     filename = file.filename
     pcap_model = Pcap(name=filename, description=description)
 
-    os.makedirs(pcap_storage_path, exist_ok=True)
-    file_path = f"{pcap_storage_path}/{filename}"
+    injector = get_ainjector(request)
+    pcap_file_dir = injector.get_instance(pcap_dir_key)
+    file_path = f"{pcap_file_dir}/{filename}"
 
     try:
         with open(file_path, 'wb') as buffer:
             shutil.copyfileobj(file.file, buffer)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Something went wrong!")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Something went wrong trying to write .pcap file to disk!")
     finally:
         await file.close()
 
