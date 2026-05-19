@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import socket
 import os
+from pathlib import Path
 import shutil
-from typing import Annotated, TypeGuard, get_args
+import struct
+from typing import Annotated
 from fastapi.responses import JSONResponse
 import uvicorn
 import libvirt
@@ -24,6 +26,7 @@ from carthage.modeling import CarthageLayout
 from carthage.dependency_injection import instantiation_roots
 from .models import *
 from .dynamic_models import FrontendDeploymentResult, map_deployment_result
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 def get_ainjector(connection: HTTPConnection)->AsyncInjector:
     return connection.app.state.layout.ainjector
@@ -174,7 +177,158 @@ async def upload_image(request:Request, model_store:model_store_dependency, file
         "message": "Success",
     })
 
-# NoVNC likes to stick a backslash at the end
+@api_v1.get("/pcaps")
+async def get_pcaps(model_store:model_store_dependency)-> list[Pcap]:
+    return list(model_store.pcaps.values())
+
+@api_v1.delete('/pcaps/{pcap_id}')
+async def delete_pcap(pcap_id:str, model_store:model_store_dependency):
+    if not pcap_id in model_store.pcaps:
+        raise HTTPException(status_code=404, detail="PCAP not found")
+
+    model_store.pcaps.pop(pcap_id)
+    model_store.save()
+
+PCAP_MAGIC_BYTES = [
+    b'\xa1\xb2\xc3\xd4',
+    b'\xa1\xb2\x3c\x4d',
+    b'\xd4\xc3\xb2\xa1',
+    b'\x4d\x3c\xb2\xa1',
+]
+
+PCAPNG_MAGIC_BYTES = [
+    0x0A0D0D0A,
+    0x4D3C2B1A,
+    0x1A2B3C4D,
+]
+
+pcap_dir_key = InjectionKey('viper_whs.pcap_dir')
+@api_v1.post("/pcaps/upload")
+async def upload_pcap(request:Request, model_store:model_store_dependency, file: UploadFile = File(...), description: str = Form(...)):
+    # read first 4 bytes then reset pointer
+    header = await file.read(28)
+    await file.seek(0)
+
+    if len(header) < 4:
+        raise HTTPException(
+            status_code=400, 
+            detail="Too small to be a valid file"
+        )
+
+    magic_bytes = header[:4]
+    block_type = struct.unpack(">I", magic_bytes)[0]
+
+    # determine pcap type
+    if block_type == PCAPNG_MAGIC_BYTES[0]:
+        file_type = "pcapng"
+    elif magic_bytes in (PCAP_MAGIC_BYTES[0], PCAP_MAGIC_BYTES[1]):
+        endian = ">"
+        file_type = "pcap"
+    elif magic_bytes in (PCAP_MAGIC_BYTES[2], PCAP_MAGIC_BYTES[3]):
+        endian = "<"
+        file_type = "pcap"
+    else:
+        raise HTTPException(
+            status_code=400, 
+            detail="Invalid file format. Not a valid .pcap or .pcapng file."
+        )
+
+    # validate the pcap type
+    if file_type == "pcap":
+        if len(header) < 24:
+            raise HTTPException(
+                status_code=400, 
+                detail="Header number of bytes too small to be a valid .pcap file"
+            )
+
+        major, minor, _, _, snaplen, network = struct.unpack(f"{endian}HHiIII", header[4:24])
+
+        if major != 2 and minor != 4:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unexpected .pcap version found [v{major}.{minor}] expected v2.4"
+            )
+        # 262_144 is common max size for snaplen per google search
+        if snaplen <= 0 or snaplen >= 262_144:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unexpected snaplen value of [{snaplen}]"
+            )
+        if network <= 0 or network > 65535:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid network value of [{network}]"
+            )
+
+    elif file_type == "pcapng":
+        if len(header) < 28:
+            raise HTTPException(
+                status_code=400, 
+                detail="Header number of bytes too small to be a valid .pcapng file"
+            )
+
+        bom = struct.unpack(">I", header[8:12])[0]
+        if bom == PCAPNG_MAGIC_BYTES[0]:
+            endian = ">"
+        elif bom == PCAPNG_MAGIC_BYTES[1]:
+            endian = "<"
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid file format. Not a valid .pcapng file."
+            )
+
+        block_len = struct.unpack(f"{endian}I", header[4:8])[0]
+        if block_len < 28:
+            raise HTTPException(
+                status_code=400, 
+                detail="Header number of bytes too small to be a valid .pcapng file"
+            )
+
+        major, minor = struct.unpack(f"{endian}HH", header[12:16])
+        if major != 1 or minor != 0:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unexpected .pcapng file version found [v{major}.{minor}]"
+            )
+    else:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Could not determine if correct .pcap / .pcapng from header"
+        )
+
+    filename = file.filename
+    pcap_model = Pcap(name=filename, description=description)
+
+    injector = get_ainjector(request)
+    pcap_file_dir = injector.get_instance(pcap_dir_key)
+    file_path = f"{pcap_file_dir}/{filename}"
+
+    try:
+        with open(file_path, 'wb') as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Something went wrong trying to write .pcap file to disk!")
+    finally:
+        await file.close()
+
+    model_store.pcaps[pcap_model.id] = pcap_model
+    model_store.save()
+
+    return JSONResponse(content = {
+        "message": "Success",
+    })
+
+class SinglePageApplicationStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        # try and get path, if it fails return index.html so SPA routing works in prod
+        try:
+            return await super().get_response(path, scope)
+        except (StarletteHTTPException, Exception) as ex:
+            if getattr(ex, "status_code", None) == 404:
+                return await super().get_response("index.html", scope)
+            raise ex
+
 @api_v1.websocket("/vnc_websocket/{device_id}")
 async def vnc_websocket_proxy(
     ws: WebSocket,
@@ -267,8 +421,9 @@ async def build_web_app(layout, plugin, injector):
     app.state.base_injector = injector
     app.state.model_store = injector.get_instance(ModelStore)
     app.include_router(api_v1)
+
     if (plugin.resource_dir/'../dist').exists():
-        app.mount('/', StaticFiles(directory=plugin.resource_dir/'../dist', html=True), name='frontend')
+        app.mount('/', SinglePageApplicationStaticFiles(directory=plugin.resource_dir/'../dist', html=True), name='frontend')
         return app
 
 @inject(app=web_app_key)

@@ -83,7 +83,9 @@ def injector(state_dir: Path):
     config.state_dir = str(state_dir)
     config.cache_dir = str(Path(test_vm_image_dir) / "cache" if test_vm_image_dir else state_dir / "cache")
     config.log_dir = str(state_dir / "log")
+
     config.vm_image_dir = test_vm_image_dir or str(state_dir / "vm")
+    config.pcap_dir = str(state_dir / "pcap")
     config.local_run_dir = str(state_dir)
     config.delete_volumes = True
     config.persist_local_networking = False

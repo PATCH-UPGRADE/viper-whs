@@ -6,6 +6,7 @@ import {
 import { DeviceViewer } from "./components/features/devices/Device";
 import { DevicesContainer } from "./components/features/devices/Devices";
 import { ImagesContainer } from "./components/features/images/Images";
+import { PcapsContainer } from "./components/features/pcaps/Pcaps";
 import { TopologiesContainer } from "./components/features/topologies/Topologies";
 
 const rootRoute = createRootRoute();
@@ -35,6 +36,11 @@ const routes = [
     getParentRoute: () => rootRoute,
     path: "/topologies",
     component: () => <TopologiesContainer />,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/pcaps",
+    component: () => <PcapsContainer />,
   }),
 ];
 
