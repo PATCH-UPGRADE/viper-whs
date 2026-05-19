@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { SquarePen, TrashIcon } from "lucide-react";
+import { ScreenShare, SquarePen, TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -147,7 +147,13 @@ export const columns: ColumnDef<Device>[] = [
       };
 
       return (
-        <>
+        <div className="flex inline-flex">
+          <div className="flex w-24 bg-blue-300/80 h-8 gap-1.5 px-2.5 py-1 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap">
+            <ScreenShare />
+            <a href={vncUrl} className="">
+              Viewer
+            </a>
+          </div>
           <Button
             className=""
             onClick={() => setOpen(true)}
@@ -163,15 +169,8 @@ export const columns: ColumnDef<Device>[] = [
             variant="destructive"
           >
             <TrashIcon />
-            Delete Device
+            Delete
           </Button>
-
-          <a
-            href={vncUrl}
-            className="bg-blue-300/80 h-8 gap-1.5 px-2.5 py-1 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap"
-          >
-            <span className="mx-3">VNC Viewer</span>
-          </a>
 
           {open && (
             <DeviceCreateUpdateModal
@@ -182,7 +181,7 @@ export const columns: ColumnDef<Device>[] = [
               isUpdate={true}
             />
           )}
-        </>
+        </div>
       );
     },
   },

@@ -1,5 +1,14 @@
 import { useParams } from "@tanstack/react-router";
+import { SlashIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import VncConnection from "./VNCViewer";
 
 export const DeviceViewer = () => {
@@ -16,10 +25,25 @@ export const DeviceViewer = () => {
 
   return (
     <div>
-      <div id="vncDesktopName">Placeholder</div>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/devices">All Devices</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <SlashIcon />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <BreadcrumbPage>{deviceId}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      <div id="vncDesktopName" className="mt-3">
+        N/A
+      </div>
       <div id="vncStatus">Not Connected</div>
-      {/* <canvas id="vncScreen" /> */}
-      <div id="vncScreen"></div>
+      <div id="vncScreen" className="mt-1"></div>
     </div>
   );
 };

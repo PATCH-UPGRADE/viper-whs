@@ -78,7 +78,7 @@ async def regenerate_layout(request:Request):
 
 
 
-api_v1 = APIRouter(prefix="/api/v1", redirect_slashes=False)
+api_v1 = APIRouter(prefix="/api/v1")
 
 @api_v1.get("/devices")
 async def get_devices(model_store:model_store_dependency)-> list[Device]:
@@ -176,7 +176,6 @@ async def upload_image(request:Request, model_store:model_store_dependency, file
 
 # NoVNC likes to stick a backslash at the end
 @api_v1.websocket("/vnc_websocket/{device_id}")
-@api_v1.websocket("/vnc_websocket/{device_id}/")
 async def vnc_websocket_proxy(
     ws: WebSocket,
     device_id: str,

@@ -5,9 +5,16 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, SlashIcon } from "lucide-react";
 import { useState } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -569,11 +576,26 @@ export const DevicesContainer = () => {
   }
 
   return (
-    <div>
-      <Button className="text-lg bg-blue-800" onClick={() => setOpen(true)}>
+    <div className="flex flex-col">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/devices">All Devices</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <SlashIcon />
+          </BreadcrumbSeparator>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      <Button
+        className="self-end text-md bg-blue-800"
+        onClick={() => setOpen(true)}
+      >
         <PlusIcon />
         Add Device
       </Button>
+
       <DeviceCreateUpdateModal
         form={form}
         open={open}
@@ -605,7 +627,7 @@ const DevicesList = ({ devices }: DevicesListI) => {
   });
 
   return (
-    <div className="p-2">
+    <div>
       <table
         style={{ border: "1px solid black", width: "100%", textAlign: "left" }}
       >
