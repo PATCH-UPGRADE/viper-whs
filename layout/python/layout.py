@@ -19,6 +19,7 @@ assignments_path = root_path/"assignments.yml"
 @inject(model_store=ModelStore, ainjector=AsyncInjector)
 async def build_layout(model_store, ainjector) -> CarthageLayout:
     injector = ainjector.injector
+    config = injector(ConfigLayout)
     model_store.load()
     model_store.validate_references()
     asyncio.ensure_future(ainjector.get_instance_async(web_server_key))
@@ -72,22 +73,50 @@ async def build_layout(model_store, ainjector) -> CarthageLayout:
                 )
 
         def build_vm(device):
+
+            device_dhcp = device.dhcp
+            device_mac = device.mac_address if device.mac_address else persistent_random_mac
+            device_ipv4 = device.ipv4_manual
+            device_gateway = device.gateway
+            device_dns_servers = device.dns_servers
+            device_image = model_store.get_device_image(device)
+            vm_image = (
+                dependency_quote(Path(config.libvirt.image_dir) / device_image.name)
+                if device_image is not None
+                else whs_vm_image
+            )
+
             @dynamic_name(device.name) # TODO: Should we do something to prevent duplicate machine names?
             class whs_vm(MachineModel):
                 name = device.name
+                architecture = device.architecture
+                cloud_init = device.cloud_init
                 cpus = device.cpus
                 memory_mb = device.memory
-                console_needed = 'vnc'
+                disk_config = [{'size': device.disk}]
+
+                console_needed = 'vnc' if device.display==True else True
                 add_provider(machine_implementation_key, dependency_quote(carthage.libvirt.Vm))
-                add_provider(carthage.libvirt.vm_image_key, whs_vm_image) # TODO: use device image from model_store
+                add_provider(carthage.libvirt.vm_image_key, vm_image)
 
                 class net_config(NetworkConfigModel):
-                    add(
-                        'eth0',
-                        mac=persistent_random_mac, # TODO: Use device mac from model_store
-                        net=injector_access('bridge_net'),
-                        v4_config=V4Config(dhcp=True),
-                    )
+                    if not device_dhcp:
+                        add(
+                            'eth0',
+                            mac=device_mac,
+                            net=injector_access('bridge_net'),
+                            v4_config=V4Config(dhcp=False,
+                                               address=device_ipv4,
+                                               gateway=device_gateway,
+                                               dns_servers=device_dns_servers)
+                        )
+                    else:
+                        add(
+                            'eth0',
+                            mac=device_mac,
+                            net=injector_access('bridge_net'),
+                            v4_config=V4Config(dhcp=device_dhcp),
+                        )
             return whs_vm
 
         for id, device in model_store.devices.items():
