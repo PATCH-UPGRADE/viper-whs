@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import os
 import shutil
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+TEST_VM_IMAGE_DIR_ENV = "WHS_TEST_VM_IMAGE_DIR"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -22,22 +23,34 @@ CARTHAGE_BASE_ROOT = Path(__file__).resolve().parents[4] / "carthage-base"
 if CARTHAGE_BASE_ROOT.exists() and str(CARTHAGE_BASE_ROOT) not in sys.path:
     sys.path.insert(0, str(CARTHAGE_BASE_ROOT))
 
-import carthage_base  # noqa: F401
 from carthage import AsyncInjector, ConfigLayout, base_injector, shutdown_injector
 from carthage.dependency_injection import InjectionKey, dependency_quote
 from carthage.modeling import CarthageLayout
-from carthage.plugins import CarthagePlugin
-from python import layout as layout_module
-from python.models import ModelStore
-import python.web_backend as web_backend
-from python.web_backend import web_app_key, web_server_key
+from carthage.plugins import CarthagePlugin, PluginMappings, load_plugin
 
-sys.modules.setdefault("layout.layout", layout_module)
-sys.modules.setdefault("layout.models", importlib.import_module("python.models"))
-sys.modules.setdefault("layout.web_backend", web_backend)
-from layout.carthage_plugin import carthage_plugin
+if CARTHAGE_BASE_ROOT.exists():
+    base_injector(PluginMappings).add_mapping(
+        {
+            "map": "https://github.com/hadron/carthage-base",
+            "to": str(CARTHAGE_BASE_ROOT),
+            "stop": True,
+        }
+    )
 
-base_injector(carthage_plugin)
+base_injector(load_plugin, LAYOUT_ROOT)
+
+layout_plugin = base_injector.get_instance(InjectionKey(CarthagePlugin, name="viper-whs"))
+plugin_package_name = layout_plugin.package.__name__
+layout_module = importlib.import_module(f"{plugin_package_name}.layout")
+models_module = importlib.import_module(f"{plugin_package_name}.models")
+web_backend = importlib.import_module(f"{plugin_package_name}.web_backend")
+ModelStore = models_module.ModelStore
+web_app_key = web_backend.web_app_key
+web_server_key = web_backend.web_server_key
+
+sys.modules.setdefault("python.layout", layout_module)
+sys.modules.setdefault("python.models", models_module)
+sys.modules.setdefault("python.web_backend", web_backend)
 
 @pytest.fixture(scope="session")
 def loop():
@@ -65,23 +78,19 @@ def state_dir(tmp_path: Path, modelstore_defaults_dir: Path) -> Path:
 def injector(state_dir: Path):
     injector = base_injector.claim()
     config = injector(ConfigLayout)
+    test_vm_image_dir = os.environ.get(TEST_VM_IMAGE_DIR_ENV)
     config.base_dir = str(state_dir.parent)
     config.state_dir = str(state_dir)
-    config.cache_dir = str(state_dir / "cache")
+    config.cache_dir = str(Path(test_vm_image_dir) / "cache" if test_vm_image_dir else state_dir / "cache")
     config.log_dir = str(state_dir / "log")
-    config.vm_image_dir = str(state_dir / "vm")
+    config.vm_image_dir = test_vm_image_dir or str(state_dir / "vm")
     config.local_run_dir = str(state_dir)
     config.delete_volumes = True
     config.persist_local_networking = False
 
     model_store = ModelStore(model_dir=state_dir / "model_store").load()
-    plugin_root = state_dir / "plugin"
-    plugin_root.mkdir(parents=True, exist_ok=True)
-    plugin = SimpleNamespace(resource_dir=plugin_root)
-    base_injector.add_provider(InjectionKey(CarthagePlugin, name="viper-whs"), plugin, replace=True)
     injector.add_provider(InjectionKey(CarthageLayout), layout_module.build_layout)
     injector.add_provider(InjectionKey(ModelStore), model_store)
-    injector.add_provider(InjectionKey(CarthagePlugin, name="viper-whs"), plugin)
     injector.add_provider(web_app_key, web_backend.build_web_app, replace=True)
     injector.add_provider(web_server_key, dependency_quote(None))
     return injector
@@ -105,8 +114,10 @@ def layout(ainjector, loop):
 
 
 @pytest.fixture
-def app(ainjector, state_dir, loop):
-    dist_root = state_dir / "dist"
+def app(ainjector, loop):
+    plugin = ainjector.injector.get_instance(InjectionKey(CarthagePlugin, name="viper-whs"))
+    dist_root = (plugin.resource_dir / "../dist").resolve()
+    created_dist_root = not dist_root.exists()
     dist_root.mkdir(parents=True, exist_ok=True)
     app = asyncio.get_event_loop().run_until_complete(ainjector.get_instance_async(web_app_key))
     assert isinstance(app, FastAPI)
@@ -117,3 +128,8 @@ def app(ainjector, state_dir, loop):
         task.cancel()
     if pending:
         loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+    if created_dist_root:
+        try:
+            dist_root.rmdir()
+        except OSError:
+            pass

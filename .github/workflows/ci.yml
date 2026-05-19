@@ -4,9 +4,9 @@ env:
   NODE_VERSION: '20'
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
     types: [opened, edited, reopened, synchronize]
 
 jobs:
@@ -38,23 +38,6 @@ jobs:
   run-npm-tests:
     name: Run npm tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: testdb
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d testdb"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/testdb
 
     steps:
       - uses: actions/checkout@v4
@@ -71,11 +54,55 @@ jobs:
       - name: Run tests
         run: npm run test
 
-  # enforce-pr-naming-convention:
-  #   if: github.event_name == 'pull_request'
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check for [VW-##] prefix
-  #       uses: deepakputhraya/action-pr-title@v1.0.2
-  #       with:
-  #         regex: '^\[VW-[0-9]+\]\s.+'
+  test-deployment:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/hadron/carthage:latest
+      options: --privileged
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      USER: root
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install prerequisites
+        run: apt update && apt install -y qemu-system-arm qemu-efi-aarch64 python3-pytest python3-fastapi iproute2 iptables procps
+      - name: Run libvirt/qemu as root # Avoids libvirt-qemu pytest directory permission issues
+        run: |
+          sed -i 's/#user = "root"/user = "root"/' /etc/libvirt/qemu.conf 
+          sed -i 's/#group = "root"/group = "root"/' /etc/libvirt/qemu.conf
+      - name: Start libvirtd
+        run: |
+          /usr/sbin/virtlogd -d
+          /usr/sbin/libvirtd -d
+      - name: Create WHS lab bridge
+        run: |
+          ip link show whs-lab >/dev/null 2>&1 || ip link add whs-lab type bridge
+          ip link set whs-lab up
+          if ! podman network inspect net >/dev/null 2>&1; then
+            ip addr del 10.20.100.1/24 dev whs-lab >/dev/null 2>&1 || true
+            podman network create net \
+              -d bridge \
+              -o com.docker.network.bridge.name=whs-lab \
+              --label carthage.layout=viper-whs \
+              --subnet 10.20.100.0/24 \
+              --gateway 10.20.100.1 \
+              -o mode=unmanaged
+          fi
+          ip addr replace 10.20.100.1/24 dev whs-lab
+          sysctl -w net.ipv4.ip_forward=1
+          iptables -C FORWARD -i whs-lab -j ACCEPT || iptables -A FORWARD -i whs-lab -j ACCEPT
+          iptables -C FORWARD -o whs-lab -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || iptables -A FORWARD -o whs-lab -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+          iptables -t nat -C POSTROUTING -s 10.20.100.0/24 ! -o whs-lab -j MASQUERADE || iptables -t nat -A POSTROUTING -s 10.20.100.0/24 ! -o whs-lab -j MASQUERADE
+      - name: Obtain Debian VM image
+        run: |
+          install -d -m 0775 -o root -g root /srv/carthage/libvirt
+          install -d -m 0775 -o root -g root /srv/carthage/libvirt/viper-whs-ci
+          install -d -m 0775 -o root -g root /srv/carthage/libvirt/viper-whs-ci/cache
+          wget https://cloud.debian.org/images/cloud/trixie/latest/debian-13-nocloud-arm64.qcow2 -P /srv/carthage/libvirt
+      - name: Run deployment tests
+        env:
+          WHS_TEST_VM_IMAGE_DIR: /srv/carthage/libvirt/viper-whs-ci
+        run: mkdir -p /srv/whs && cd layout && pytest --basetemp=/srv/whs
