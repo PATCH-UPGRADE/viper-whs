@@ -5,9 +5,16 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, SlashIcon } from "lucide-react";
 import { useState } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -196,11 +203,26 @@ export const ImagesContainer = () => {
   }
 
   return (
-    <div>
-      <Button className="text-lg bg-blue-800" onClick={() => setOpen(true)}>
+    <div className="flex flex-col">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/images">All Images</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <SlashIcon />
+          </BreadcrumbSeparator>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      <Button
+        className="self-end text-md bg-blue-800"
+        onClick={() => setOpen(true)}
+      >
         <PlusIcon />
         Add Image
       </Button>
+
       <VmImageUploadModal
         form={form}
         open={open}
@@ -232,7 +254,7 @@ const ImagesList = ({ images }: ImagesListI) => {
   });
 
   return (
-    <div className="p-2">
+    <div>
       <table
         style={{ border: "1px solid black", width: "100%", textAlign: "left" }}
       >

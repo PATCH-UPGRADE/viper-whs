@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import socket
 import os
 import shutil
 from typing import Annotated, TypeGuard, get_args
 from fastapi.responses import JSONResponse
 import uvicorn
-from fastapi import FastAPI, APIRouter, Depends, Form, HTTPException, Request, File, UploadFile
+import libvirt
+from fastapi import FastAPI, APIRouter, Depends, Form, HTTPException, Request, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
+from starlette.requests import HTTPConnection
 from carthage import (
     AsyncInjector,
     ConfigLayout,
@@ -22,14 +25,23 @@ from carthage.dependency_injection import instantiation_roots
 from .models import *
 from .dynamic_models import FrontendDeploymentResult, map_deployment_result
 
-def get_ainjector(request:Request)->AsyncInjector:
-    return request.app.state.layout.ainjector
+def get_ainjector(connection: HTTPConnection)->AsyncInjector:
+    return connection.app.state.layout.ainjector
 
-def get_layout(request:Request)-> CarthageLayout:
-    return request.app.state.layout
+def get_layout(connection: HTTPConnection)-> CarthageLayout:
+    return connection.app.state.layout
 
-def get_model_store(request:Request)->ModelStore:
-    return request.app.state.model_store
+def get_model_store(connection: HTTPConnection)->ModelStore:
+    return connection.app.state.model_store
+
+def get_libvirt_connection():
+    conn = libvirt.open('')
+    if conn is None:
+        raise HTTPException(status_code=500, detail="Unable to open default libvirt connection")
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 def running_deployment()-> deployment.DeploymentResult | None:
     for r in instantiation_roots:
@@ -43,6 +55,7 @@ ainjector_dependency = Annotated[AsyncInjector, Depends(get_ainjector)]
 layout_dependency = Annotated[CarthageLayout, Depends(get_layout)]
 
 model_store_dependency = Annotated[ModelStore, Depends(get_model_store)]
+libvirt_connection_dependency = Annotated[libvirt.virConnect, Depends(get_libvirt_connection)]
                                    
 async def regenerate_layout(request:Request):
     '''
@@ -160,6 +173,78 @@ async def upload_image(request:Request, model_store:model_store_dependency, file
     return JSONResponse(content = {
         "message": "Success",
     })
+
+# NoVNC likes to stick a backslash at the end
+@api_v1.websocket("/vnc_websocket/{device_id}")
+async def vnc_websocket_proxy(
+    ws: WebSocket,
+    device_id: str,
+    model_store: model_store_dependency,
+    libvirt_connection: libvirt_connection_dependency,
+):
+    device = model_store.devices.get(device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    requested = ws.headers.get("sec-websocket-protocol")
+    subprotocol = requested.split(",")[0].strip() if requested else None
+    await ws.accept(subprotocol=subprotocol)
+
+    if device.type != 'vm':
+        await ws.close(code=1008, reason="Only VM devices support VNC")
+        return
+
+    domain_name = f"whs-{device.name}"
+    try:
+        domain = libvirt_connection.lookupByName(domain_name)
+        graphics_fd = domain.openGraphicsFD(0, libvirt.VIR_DOMAIN_OPEN_GRAPHICS_SKIPAUTH)
+        vnc_socket = socket.socket(fileno=graphics_fd)
+        vnc_socket.setblocking(False)
+        reader, writer = await asyncio.open_connection(sock=vnc_socket)
+    except (libvirt.libvirtError, OSError) as e:
+        print("ERROR", e)
+        await ws.close(code=1011)
+        return
+
+    async def ws_to_vnc():
+        try:
+            while True:
+                data = await ws.receive_bytes()
+                writer.write(data)
+                await writer.drain()
+        except WebSocketDisconnect:
+            print("Websocket Client disconnected")
+        except Exception:
+            writer.close()
+    
+    async def vnc_to_ws():
+        try:
+            while True:
+                data = await reader.read(65536)
+                if not data:
+                    break
+                await ws.send_bytes(data)
+        except Exception as e:
+            print("vnc_to_ws() error:", e)
+        
+        try:
+            await ws.close()
+        except Exception:
+            pass
+
+    done, pending = await asyncio.wait([
+        asyncio.create_task(ws_to_vnc(), name="ws-to-vnc"),
+        asyncio.create_task(vnc_to_ws(), name="vnc-to-ws")
+    ], return_when=asyncio.FIRST_COMPLETED)
+
+    for task in pending:
+        task.cancel()
+    writer.close()
+    try:
+        await writer.wait_closed()
+    except Exception:
+        pass
+    print("Session closed")
 
 @inject(
     layout=InjectionKey(CarthageLayout, _ready=False),

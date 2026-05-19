@@ -5,9 +5,16 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, SlashIcon } from "lucide-react";
 import { useState } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -270,21 +277,21 @@ export const DeviceCreateUpdateModal = ({
                   <FormItem>
                     <FormLabel>Disk *</FormLabel>
                     <FormDescription>
-                      The amount of disk space (in GBs) the Device should have
+                      The amount of disk space (in MBs) the Device should have
                     </FormDescription>
                     <FormControl>
                       <Input
                         type="number"
-                        placeholder="20"
+                        placeholder="20480"
                         {...field}
                         onChange={(e) => {
                           const value = parseInt(e.target.value, 10);
-                          field.onChange(Number.isNaN(value) ? 20 : value);
+                          field.onChange(Number.isNaN(value) ? 20480 : value);
                         }}
                       />
                     </FormControl>
                     <FormDescription>
-                      Recommended Minimum: 20 GBs
+                      Recommended Minimum: 20480 MBs (20 GBs)
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -535,7 +542,7 @@ export const DevicesContainer = () => {
       cloud_init: false,
       cpus: 2,
       memory: 4096, // Megabytes
-      disk: 20, // Gigabytes
+      disk: 20480, // Megabytes
       disk_controller: "virtio",
       display: false,
       image_id: "",
@@ -569,11 +576,26 @@ export const DevicesContainer = () => {
   }
 
   return (
-    <div>
-      <Button className="text-lg bg-blue-800" onClick={() => setOpen(true)}>
+    <div className="flex flex-col">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/devices">All Devices</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <SlashIcon />
+          </BreadcrumbSeparator>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      <Button
+        className="self-end text-md bg-blue-800"
+        onClick={() => setOpen(true)}
+      >
         <PlusIcon />
         Add Device
       </Button>
+
       <DeviceCreateUpdateModal
         form={form}
         open={open}
@@ -605,7 +627,7 @@ const DevicesList = ({ devices }: DevicesListI) => {
   });
 
   return (
-    <div className="p-2">
+    <div>
       <table
         style={{ border: "1px solid black", width: "100%", textAlign: "left" }}
       >
