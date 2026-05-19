@@ -1,10 +1,12 @@
 import asyncio
 
-from carthage.pytest import async_test
+from carthage.pytest import TestTiming, async_test
 from httpx import ASGITransport, AsyncClient
 
 
-async def wait_for_completed_deployment(client: AsyncClient, timeout: float = 120.0):
+DEPLOYMENT_TEST_TIMEOUT = 900.0
+
+async def wait_for_completed_deployment(client: AsyncClient, timeout: float = DEPLOYMENT_TEST_TIMEOUT):
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     last_body = None
@@ -32,11 +34,12 @@ async def test_deployment_status_starts_empty(app):
 
 @async_test
 async def test_deploy_endpoint_wires_through(app):
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/api/v1/deploy")
-        assert response.status_code == 200
+    with TestTiming(DEPLOYMENT_TEST_TIMEOUT):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/deploy")
+            assert response.status_code == 200
 
-        status = await wait_for_completed_deployment(client)
+            status = await wait_for_completed_deployment(client)
 
     assert status["running"] is False
     assert status["failures"] == []

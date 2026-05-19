@@ -3,6 +3,7 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
+import { DeviceViewer } from "./components/features/devices/Device";
 import { DevicesContainer } from "./components/features/devices/Devices";
 import { ImagesContainer } from "./components/features/images/Images";
 import { PcapsContainer } from "./components/features/pcaps/Pcaps";
@@ -15,6 +16,11 @@ const routes = [
     getParentRoute: () => rootRoute,
     path: "/",
     component: () => <DevicesContainer />,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/devices/$deviceId",
+    component: () => <DeviceViewer />,
   }),
   createRoute({
     getParentRoute: () => rootRoute,

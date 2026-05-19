@@ -27,6 +27,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@novnc/novnc/core/rfb.js": "/node_modules/@novnc/novnc/core/rfb.js",
     },
   },
 });

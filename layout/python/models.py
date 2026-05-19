@@ -54,10 +54,10 @@ class Device(IdentifiedModel):
     type: Literal['vm', 'container'] = Field(description='Type of device, vm or container. Only vm is supported today.', default='vm')
     cloud_init: bool = Field(description='Use cloud init', default=True)
 
-    architecture: Literal['x86_64', 'arm_aarch64'] = Field(description='Architecture of the device, x86_64 or arm_aarch64', default='x86_64')
+    architecture: Literal['x86_64', 'aarch64'] = Field(description='Architecture of the device, x86_64 or aarch64', default='x86_64')
     cpus: int = Field(description='Number of CPUs assigned', default=2)
     memory: int = Field(description='System memory (in MB) assigned', default=4096)
-    disk: int = Field(description='Disk size (in GB)', default=20)
+    disk: int = Field(description='Disk size (in MB)', default=20*1024)
     disk_controller: Literal['virtio', 'sata'] = Field(description='Controller used for disk', default='virtio')
     display: bool = Field(description='Display needed', default=False)
 
@@ -170,7 +170,7 @@ if __name__ == '__main__':
     test_image = VmImage(
         name = 'sdr_img',
         description = 'Siemens Digital Radiography',
-        version = 13.37,
+        version = "v13.37",
         type = 'qcow2',
     )
     test_device = Device(

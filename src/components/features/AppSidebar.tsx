@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 const urls = [
   { name: "Devices", path: "/devices" },
   { name: "Images", path: "/images" },
-  { name: "Topologies", path: "/topologies" },
-  { name: "Pcaps", path: "/pcaps" },
+  { name: "PCAPs", path: "/pcaps" },
+  { name: "Deploy", path: "/topologies" }, // TODO: Make this proper once WHS backend supports multiple deploys
 ];
 
 export const AppSidebar: React.FC = () => {
@@ -24,7 +24,7 @@ export const AppSidebar: React.FC = () => {
               href={url.path}
               className={cn(
                 "flex items-center px-6 py-3 text-gray-700 border-r-4",
-                path === url.path && "bg-gray-100 border-blue-600",
+                path.includes(url.path) && "bg-gray-100 border-blue-600",
               )}
             >
               <span className="mx-3">{url.name}</span>

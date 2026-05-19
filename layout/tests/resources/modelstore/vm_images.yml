@@ -1,3 +1,8 @@
+debian_arm:
+  name: debian-13-nocloud-arm64.qcow2
+  description: Debian Trixie ARM nocloud
+  version: Trixie
+  type: qcow2
 sdr_img:
   name: sdr_img
   description: Siemens Digital Radiography
